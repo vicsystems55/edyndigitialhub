@@ -79,12 +79,14 @@ button, input { font: inherit; }
 
 /* Preloader and transitions */
 .preloader { align-items: center; background: var(--surface); display: flex; inset: 0; justify-content: center; position: fixed; z-index: 999; }
-.preloader-logo { height: 110px; object-fit: contain; width: 180px; }
+.preloader-logo-wrap { align-items: center; display: flex; flex-direction: column; gap: 20px; }
+.preloader-logo { animation: logo-breathe 1.05s ease-in-out infinite alternate; height: 110px; object-fit: contain; transform-origin: center; width: 180px; }
 .preloader-text { align-items: center; display: flex; flex-direction: column; gap: 18px; }
 .preloader-text .brand-logo { transform: scale(1.35); }
 .preloader-line { background: var(--border); border-radius: 20px; height: 3px; overflow: hidden; width: 130px; }
 .preloader-line i { animation: loading 1s ease-in-out infinite; background: linear-gradient(90deg, var(--green), var(--yellow)); display: block; height: 100%; width: 55%; }
 @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(190%); } }
+@keyframes logo-breathe { 0% { opacity: .72; transform: translateY(5px) scale(.92); } 100% { opacity: 1; transform: translateY(-4px) scale(1.04); } }
 .page-enter-active, .page-leave-active { transition: opacity .35s ease, transform .35s ease; }
 .page-enter-from { opacity: 0; transform: translateY(12px); }
 .page-leave-to { opacity: 0; transform: translateY(-8px); }

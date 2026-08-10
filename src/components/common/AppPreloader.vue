@@ -26,7 +26,10 @@ onMounted(() => {
 
 <template>
   <div v-if="visible" ref="loader" class="preloader" role="status" aria-label="Loading Edyn Digital Hub">
-    <img v-if="siteConfig.preloader.type === 'logo'" :src="siteConfig.preloader.logoSrc" alt="Edyn Digital Hub" class="preloader-logo" />
+    <div v-if="siteConfig.preloader.type === 'logo'" class="preloader-logo-wrap">
+      <img :src="siteConfig.preloader.logoSrc" alt="Edyn Digital Hub" class="preloader-logo" />
+      <span class="preloader-line"><i></i></span>
+    </div>
     <div v-else class="preloader-text">
       <BrandLogo />
       <span class="preloader-line"><i></i></span>
