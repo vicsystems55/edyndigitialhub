@@ -10,27 +10,28 @@ const root = ref(null)
 usePageAnimations(root)
 
 const upcomingBooks = [
-  { label: 'Upcoming publication', number: '01', theme: 'Wellbeing' },
-  { label: 'Upcoming publication', number: '02', theme: 'Learning' },
-  { label: 'Upcoming publication', number: '03', theme: 'Growth' },
+  { title: 'The Confident You', number: '02', theme: 'Personal Growth', accent: 'confident' },
+  { title: 'The Wealthy You', number: '03', theme: 'Wealth & Growth', accent: 'wealthy' },
 ]
 </script>
 
 <template>
   <div ref="root" class="publications-page">
-    <PageHero eyebrow="Edyn Books & Publications" title="Ideas worth sharing." accent="Books made to impact." description="Discover publications created to educate, inspire, and support meaningful personal and professional growth." primary-label="Discover The Health You" primary-to="/publications/the-health-you" />
+    <PageHero eyebrow="Welcome to the Edyn Library" title="Books for a better," accent="more empowered you." description="Explore a growing library of thoughtful publications created to support wellbeing, confidence, personal growth, and meaningful transformation." primary-label="Read Our Latest Book" primary-to="/publications/the-healthy-you" />
+
+    <section class="library-intro"><div class="container library-intro-row" data-reveal><div><span>01</span><strong>Published title</strong></div><div><span>02</span><strong>Books coming soon</strong></div><p>A growing collection by Princess Oluwatoyin Emmanuel and Edyn Digital Hub.</p></div></section>
 
     <section class="section publication-feature">
       <div class="container publication-feature-grid">
         <div class="featured-cover-wrap" data-reveal><div class="cover-orbit"></div><BookCover /></div>
-        <div data-reveal><p class="eyebrow">Featured publication</p><h2>The Health You</h2><p class="publication-byline">By Princess Oluwatoyin Emmanuel</p><p class="publication-description">A publication from the founder of Edyn Digital Hub. The official synopsis, edition information, and purchasing details will be added here when they are confirmed.</p><div class="publication-meta"><span><BookOpen :size="18" /> Published work</span><span><Feather :size="18" /> Founder-authored</span></div><RouterLink to="/publications/the-health-you" class="button button-green">Explore the Book <ArrowRight :size="18" /></RouterLink></div>
+        <div data-reveal><p class="eyebrow">Latest from the library</p><span class="latest-release-badge">Featured book</span><h2>The Healthy You</h2><p class="publication-byline">By Princess Oluwatoyin Emmanuel</p><p class="publication-description">The latest featured title in the Edyn Library. Explore the dedicated book page for its story, publication details, availability updates, and enquiries.</p><div class="publication-meta"><span><BookOpen :size="18" /> Latest title</span><span><Feather :size="18" /> Founder-authored</span></div><RouterLink to="/publications/the-healthy-you" class="button button-green">Explore the Book <ArrowRight :size="18" /></RouterLink></div>
       </div>
     </section>
 
-    <section class="section publishing-purpose"><div class="container"><header class="section-heading" data-reveal><p class="eyebrow">Why we publish</p><h2>Knowledge can create lasting change</h2><p>Edyn publications extend our commitment to learning, creativity, wellbeing, and practical transformation beyond digital services.</p></header><div class="publishing-values"><article data-reveal><BookOpen /><h3>Educate</h3><p>Make useful knowledge easier to understand and apply.</p></article><article data-reveal><Sparkles /><h3>Inspire</h3><p>Encourage reflection, possibility, and purposeful action.</p></article><article data-reveal><Feather /><h3>Empower</h3><p>Give readers ideas and tools that support meaningful growth.</p></article></div></div></section>
+    <section class="section publishing-purpose"><div class="container"><header class="section-heading" data-reveal><p class="eyebrow">The heart of our library</p><h2>Knowledge can create lasting change</h2><p>The Edyn Library extends our commitment to learning, wellbeing, creativity, and practical transformation beyond digital services.</p></header><div class="publishing-values"><article data-reveal><BookOpen /><h3>Learn</h3><p>Discover useful ideas presented with clarity and purpose.</p></article><article data-reveal><Sparkles /><h3>Become</h3><p>Reflect on new possibilities for your life and personal journey.</p></article><article data-reveal><Feather /><h3>Grow</h3><p>Turn meaningful insight into informed and purposeful action.</p></article></div></div></section>
 
-    <section class="section upcoming-publications"><div class="container"><header class="section-heading" data-reveal><p class="eyebrow">Coming next</p><h2>More publications are taking shape</h2><p>New titles are currently being developed. Join our updates to be among the first to know.</p></header><div class="upcoming-books-grid"><article v-for="book in upcomingBooks" :key="book.number" data-reveal><span>{{ book.number }}</span><div class="upcoming-book-mark">E</div><p>{{ book.theme }}</p><h3>{{ book.label }}</h3><small>Title to be announced</small></article></div><div class="center-action" data-reveal><RouterLink to="/resources" class="button button-outline"><Bell :size="17" /> Follow Publication Updates</RouterLink></div></div></section>
+    <section id="library" class="section upcoming-publications"><div class="container"><header class="section-heading" data-reveal><p class="eyebrow">Coming to the library</p><h2>Your next reads are taking shape</h2><p>Two new titles are currently being developed as part of the growing “You” collection.</p></header><div class="upcoming-books-grid"><article v-for="book in upcomingBooks" :key="book.number" :class="`upcoming-book--${book.accent}`" data-reveal><span>{{ book.number }}</span><div class="upcoming-book-mark">E</div><p>{{ book.theme }}</p><h3>{{ book.title }}</h3><small>Coming soon</small><div class="book-spine-title">{{ book.title }}</div></article></div><div class="center-action" data-reveal><RouterLink to="/resources" class="button button-outline"><Bell :size="17" /> Get Library Updates</RouterLink></div></div></section>
 
-    <CallToAction eyebrow="Publishing enquiries" title="Interested in a publication, partnership, or bulk order?" text="Contact Edyn Digital Hub for availability, publication updates, and collaboration enquiries." label="Make an Enquiry" />
+    <CallToAction eyebrow="Library enquiries" title="Interested in a book, partnership, or bulk order?" text="Contact Edyn Digital Hub for book availability, library updates, and publication enquiries." label="Make an Enquiry" />
   </div>
 </template>

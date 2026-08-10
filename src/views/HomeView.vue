@@ -94,7 +94,7 @@ onBeforeUnmount(() => context?.revert())
     <section class="section home-publication">
       <div class="container home-publication-card" data-reveal>
         <div class="home-book-cover"><BookCover compact /></div>
-        <div><p class="eyebrow">Featured publication</p><h2>The Health You</h2><p>A founder-authored publication from Princess Oluwatoyin Emmanuel. Discover the book and follow upcoming titles from Edyn Books & Publications.</p><RouterLink to="/publications/the-health-you" class="button button-yellow">Discover the Book <ArrowRight :size="18" /></RouterLink></div>
+        <div><p class="eyebrow">Featured publication</p><h2>The Healthy You</h2><p>A founder-authored publication from Princess Oluwatoyin Emmanuel. Discover the book and follow upcoming titles from Edyn Books & Publications.</p><RouterLink to="/publications/the-healthy-you" class="button button-yellow">Discover the Book <ArrowRight :size="18" /></RouterLink></div>
       </div>
     </section>
 

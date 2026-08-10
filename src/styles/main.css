@@ -293,3 +293,27 @@ button, input { font: inherit; }
 @media (max-width: 700px) {
   .publication-feature-grid,.home-publication-card,.book-hero-grid,.book-content-grid,.author-book-grid { grid-template-columns: 1fr; }.publication-feature-grid,.book-hero-grid,.book-content-grid,.author-book-grid { gap: 45px; }.featured-cover-wrap { padding: 20px; }.cover-orbit { height: 310px; width: 310px; }.book-cover { max-width: 285px; }.publishing-values,.upcoming-books-grid { grid-template-columns: 1fr; }.home-publication-card { padding: 45px 25px; }.home-book-cover { margin: 0 auto; }.learning-publications-card,.book-updates-card { grid-template-columns: 1fr; padding: 30px 24px; }.learning-publications-card .button,.book-updates-card .button { grid-column: auto; justify-self: stretch; }.resource-publication-link { grid-template-columns: auto 1fr; }.resource-publication-link > svg:last-child { display: none; }.book-hero { padding: 125px 0 70px; }.book-hero-cover { order: 2; }.book-content-grid aside { border-bottom: 1px solid var(--border); border-right: 0; padding: 0 0 30px; }.author-book-photo { margin: 0 auto; }
 }
+
+/* Edyn Library catalogue refinements */
+.library-intro { background: var(--background); padding: 34px 0; }
+.library-intro-row { align-items: center; border-bottom: 1px solid var(--border); display: grid; gap: 32px; grid-template-columns: auto auto 1fr; padding-bottom: 34px; }
+.library-intro-row > div { align-items: center; display: flex; gap: 10px; }
+.library-intro-row > div span { color: var(--green); font: 800 1.45rem 'Manrope'; }
+.library-intro-row > div strong { color: var(--text-soft); font-size: .78rem; max-width: 95px; }
+.library-intro-row > p { color: var(--muted); justify-self: end; margin: 0; text-align: right; }
+.latest-release-badge { background: var(--yellow); border-radius: 999px; color: var(--deep-green); display: inline-flex; font-size: .66rem; font-weight: 800; letter-spacing: .08em; margin-top: 20px; padding: 7px 11px; text-transform: uppercase; }
+.upcoming-books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-inline: auto; max-width: 850px; }
+.upcoming-books-grid article { min-height: 390px; padding: 28px 48px 28px 32px; }
+.upcoming-book-mark { margin-bottom: 65px; }
+.upcoming-books-grid h3 { font-size: 1.5rem; }
+.upcoming-books-grid small { color: var(--gold); font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.upcoming-book--confident { background: radial-gradient(circle at 85% 15%, rgba(255,196,0,.24), transparent 25%), linear-gradient(155deg, var(--surface), #f3eedc) !important; }
+.upcoming-book--wealthy { background: radial-gradient(circle at 85% 15%, rgba(63,174,42,.23), transparent 25%), linear-gradient(155deg, var(--surface), var(--surface-soft)) !important; }
+.book-spine-title { align-items: center; background: var(--green); bottom: 0; color: white; display: flex; font-size: .58rem; font-weight: 800; justify-content: center; letter-spacing: .1em; padding: 12px 8px; position: absolute; right: 0; text-transform: uppercase; top: 0; writing-mode: vertical-rl; }
+.upcoming-book--confident .book-spine-title { background: var(--gold); color: var(--deep-green); }
+
+@media (max-width: 700px) {
+  .library-intro-row { grid-template-columns: repeat(2, 1fr); }
+  .library-intro-row > p { grid-column: 1 / -1; justify-self: start; text-align: left; }
+  .upcoming-books-grid { grid-template-columns: 1fr; }
+}

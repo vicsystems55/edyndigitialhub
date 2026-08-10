@@ -12,6 +12,8 @@ Use `public/` only for files that must keep a fixed public URL, such as the prel
 
 Example:
 
+
+
 ```js
 import founderImage from '@/assets/images/founder.webp'
 ```
