@@ -44,8 +44,8 @@ onBeforeUnmount(() => context?.revert())
     <section class="hero">
       <div class="hero-grid container">
         <div class="hero-copy">
-          <p class="eyebrow">Welcome to Edyn Digital Hub</p>
-          <h1>Building Brands.<br />Empowering Growth.<br /><span>Creating Digital Impact.</span></h1>
+ 
+          <h1 >Building Brands.<br />Empowering Growth.<br /><span>Creating Digital Impact.</span></h1>
           <p class="hero-lead">We help businesses, educators, and entrepreneurs build powerful brands, grow their online presence, and create measurable impact through creative, strategic, and digital solutions.</p>
           <div class="hero-buttons">
             <RouterLink to="/services" class="button button-green">Explore Our Services <ArrowRight :size="18" /></RouterLink>
@@ -76,6 +76,7 @@ onBeforeUnmount(() => context?.revert())
           </article>
         </div>
       </div>
+      
     </section>
 
     <section class="section portfolio-section">
