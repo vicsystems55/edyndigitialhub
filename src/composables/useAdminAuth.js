@@ -6,6 +6,20 @@ const PROFILE_KEY = 'edyn-admin-profile'
 
 const token = ref(localStorage.getItem(TOKEN_KEY) || '')
 const profile = ref(readStoredProfile())
+let validatedToken = ''
+
+function apiUrl() {
+  return (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+}
+
+function demoModeEnabled() {
+  return import.meta.env.DEV && import.meta.env.VITE_ADMIN_DEMO_MODE === 'true'
+}
+
+function isUsableToken(value) {
+  if (!value || ['undefined', 'null'].includes(value)) return false
+  return value !== 'edyn-development-session' || demoModeEnabled()
+}
 
 function readStoredProfile() {
   try {
@@ -23,15 +37,88 @@ function saveSession(accessToken, admin, refreshToken = '') {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(admin))
 }
 
+function clearSession() {
+  token.value = ''
+  profile.value = null
+  validatedToken = ''
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(PROFILE_KEY)
+}
+
+if (!isUsableToken(token.value)) clearSession()
+
 export function isAdminAuthenticated() {
-  return Boolean(localStorage.getItem(TOKEN_KEY))
+  return isUsableToken(localStorage.getItem(TOKEN_KEY) || '')
+}
+
+async function refreshAdminSession() {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY) || ''
+  if (!refreshToken) return false
+
+  const response = await fetch(`${apiUrl()}/api/v1/admin/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok || !payload.data?.accessToken) return false
+
+  saveSession(payload.data.accessToken, payload.data.admin, payload.data.refreshToken)
+  validatedToken = payload.data.accessToken
+  return true
+}
+
+export async function ensureAdminAuthenticated() {
+  const accessToken = localStorage.getItem(TOKEN_KEY) || ''
+  if (!isUsableToken(accessToken)) {
+    clearSession()
+    return false
+  }
+  if (accessToken === 'edyn-development-session' || validatedToken === accessToken) return true
+
+  try {
+    const response = await fetch(`${apiUrl()}/api/v1/admin/auth/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      if (payload.data?.admin) {
+        profile.value = payload.data.admin
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(payload.data.admin))
+      }
+      validatedToken = accessToken
+      return true
+    }
+    if (response.status === 401 && await refreshAdminSession()) return true
+  } catch {
+    // A disconnected API is not an authenticated session.
+  }
+
+  clearSession()
+  return false
+}
+
+export async function authorizedAdminFetch(input, options = {}) {
+  async function send(accessToken) {
+    const headers = new Headers(options.headers || {})
+    headers.set('Authorization', `Bearer ${accessToken}`)
+    return fetch(input, { ...options, headers })
+  }
+
+  let response = await send(localStorage.getItem(TOKEN_KEY) || '')
+  if (response.status === 401 && await refreshAdminSession()) {
+    response = await send(localStorage.getItem(TOKEN_KEY) || '')
+  }
+  if (response.status === 401 || response.status === 403) clearSession()
+  return response
 }
 
 export function useAdminAuth() {
   const isAuthenticated = computed(() => Boolean(token.value))
 
   async function signIn(credentials) {
-    const demoMode = import.meta.env.DEV && import.meta.env.VITE_ADMIN_DEMO_MODE === 'true'
+    const demoMode = demoModeEnabled()
 
     if (demoMode) {
       if (!credentials.email.includes('@') || credentials.password.length < 6) {
@@ -46,8 +133,8 @@ export function useAdminAuth() {
       return
     }
 
-    const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-    const response = await fetch(`${apiUrl}/api/v1/admin/auth/login`, {
+    clearSession()
+    const response = await fetch(`${apiUrl()}/api/v1/admin/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
@@ -60,14 +147,11 @@ export function useAdminAuth() {
 
     const session = data.data || data
     saveSession(session.accessToken, session.admin, session.refreshToken)
+    validatedToken = session.accessToken
   }
 
   function signOut() {
-    token.value = ''
-    profile.value = null
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
-    localStorage.removeItem(PROFILE_KEY)
+    clearSession()
   }
 
   return { isAuthenticated, profile, signIn, signOut }

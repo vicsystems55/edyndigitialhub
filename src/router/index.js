@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
-import { isAdminAuthenticated } from '../composables/useAdminAuth'
+import { ensureAdminAuthenticated } from '../composables/useAdminAuth'
 
 const AboutView = () => import('../views/AboutView.vue')
 const ServicesView = () => import('../views/ServicesView.vue')
@@ -61,8 +61,9 @@ const router = createRouter({
   },
 })
 
-router.beforeEach((to) => {
-  const authenticated = isAdminAuthenticated()
+router.beforeEach(async (to) => {
+  if (!to.meta.requiresAdminAuth && !to.meta.guestOnly) return true
+  const authenticated = await ensureAdminAuthenticated()
 
   if (to.meta.requiresAdminAuth && !authenticated) {
     return { name: 'admin-login', query: { redirect: to.fullPath } }

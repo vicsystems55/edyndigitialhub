@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { BookOpen, CheckCircle2, FileUp, LoaderCircle, Save } from '@lucide/vue'
+import { authorizedAdminFetch } from '../../composables/useAdminAuth'
 
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const books = ref([])
@@ -18,10 +19,6 @@ const error = ref('')
 
 const selectedBook = computed(() => books.value.find((book) => book.slug === selectedSlug.value) || null)
 
-function authHeaders(extra = {}) {
-  return { Authorization: `Bearer ${localStorage.getItem('edyn-admin-token') || ''}`, ...extra }
-}
-
 function selectBook(book) {
   selectedSlug.value = book.slug
   price.value = book.priceMinor == null ? '' : (book.priceMinor / 100).toFixed(2)
@@ -34,9 +31,8 @@ function selectBook(book) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`${apiUrl}/api/v1${path}`, {
+  const response = await authorizedAdminFetch(`${apiUrl}/api/v1${path}`, {
     ...options,
-    headers: authHeaders(options.headers),
   })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error?.message || payload.message || 'The request could not be completed.')
