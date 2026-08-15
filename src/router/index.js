@@ -11,10 +11,12 @@ const PublicationsView = () => import('../views/PublicationsView.vue')
 const BookView = () => import('../views/BookView.vue')
 const ResourcesView = () => import('../views/ResourcesView.vue')
 const ContactView = () => import('../views/ContactView.vue')
+const PaymentCallbackView = () => import('../views/PaymentCallbackView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 const AdminLoginView = () => import('../views/admin/AdminLoginView.vue')
 const AdminLayout = () => import('../components/admin/AdminLayout.vue')
 const AdminDashboardView = () => import('../views/admin/AdminDashboardView.vue')
+const AdminPublicationsView = () => import('../views/admin/AdminPublicationsView.vue')
 const AdminSectionView = () => import('../views/admin/AdminSectionView.vue')
 
 const router = createRouter({
@@ -31,6 +33,7 @@ const router = createRouter({
     { path: '/publications/the-healthy-you', name: 'the-healthy-you', component: BookView, meta: { title: 'The Healthy You' } },
     { path: '/resources', name: 'resources', component: ResourcesView, meta: { title: 'Resources' } },
     { path: '/contact', name: 'contact', component: ContactView, meta: { title: 'Contact' } },
+    { path: '/payment/callback', name: 'payment-callback', component: PaymentCallbackView, meta: { title: 'Payment Status' } },
     {
       path: '/admin/login',
       name: 'admin-login',
@@ -45,7 +48,7 @@ const router = createRouter({
         { path: '', name: 'admin-dashboard', component: AdminDashboardView, meta: { title: 'Dashboard', admin: true, requiresAdminAuth: true } },
         { path: 'analytics', name: 'admin-analytics', component: AdminSectionView, meta: { title: 'Analytics & Views', admin: true, requiresAdminAuth: true, section: 'analytics', description: 'Monitor website traffic, page performance and visitor activity.' } },
         { path: 'sales', name: 'admin-sales', component: AdminSectionView, meta: { title: 'Sales & Orders', admin: true, requiresAdminAuth: true, section: 'sales', description: 'Track Paystack payments, book orders and download fulfilment.' } },
-        { path: 'publications', name: 'admin-publications', component: AdminSectionView, meta: { title: 'Publications', admin: true, requiresAdminAuth: true, section: 'publications', description: 'Manage books, pricing, availability and protected ebook files.' } },
+        { path: 'publications', name: 'admin-publications', component: AdminPublicationsView, meta: { title: 'Publications', admin: true, requiresAdminAuth: true } },
         { path: 'messages', name: 'admin-messages', component: AdminSectionView, meta: { title: 'Contact Messages', admin: true, requiresAdminAuth: true, section: 'messages', description: 'Review and respond to enquiries submitted through the website.' } },
         { path: 'newsletter', name: 'admin-newsletter', component: AdminSectionView, meta: { title: 'Newsletter', admin: true, requiresAdminAuth: true, section: 'newsletter', description: 'Manage subscribers and export the mailing list.' } },
         { path: 'settings', name: 'admin-settings', component: AdminSectionView, meta: { title: 'Settings', admin: true, requiresAdminAuth: true, section: 'settings', description: 'Control site details, integrations and administrator preferences.' } },

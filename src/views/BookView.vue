@@ -1,29 +1,131 @@
 <script setup>
-import { ref } from 'vue'
-import { ArrowLeft, ArrowRight, BookOpen, Check, Mail } from '@lucide/vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { ArrowLeft, ArrowRight, BadgeCheck, BookOpen, CheckCircle2, CreditCard, HeartPulse, Lightbulb, LoaderCircle, LockKeyhole, ShieldCheck, Sparkles, Target } from '@lucide/vue'
 import BookCover from '../components/common/BookCover.vue'
-import CallToAction from '../components/common/CallToAction.vue'
 import { usePageAnimations } from '../composables/usePageAnimations'
 import ceoImage from '../assets/images/ceo.png'
 
 const root = ref(null)
+const loadingBook = ref(true)
+const checkoutLoading = ref(false)
+const checkoutError = ref('')
+const book = ref(null)
+const buyer = reactive({ customerName: '', customerEmail: '' })
+const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
 usePageAnimations(root)
+
+const formattedPrice = computed(() => {
+  if (!book.value?.priceMinor) return 'Price being updated'
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: book.value.currency || 'NGN',
+    maximumFractionDigits: 0,
+  }).format(book.value.priceMinor / 100)
+})
+const canPurchase = computed(() => Boolean(book.value?.canPurchase))
+
+async function loadBook() {
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/publications/the-healthy-you`)
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error?.message || 'Unable to load purchasing details.')
+    book.value = payload.data
+  } catch (error) {
+    checkoutError.value = error.message || 'Unable to reach the store. Please try again shortly.'
+  } finally {
+    loadingBook.value = false
+  }
+}
+
+async function beginCheckout() {
+  checkoutError.value = ''
+  checkoutLoading.value = true
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/payments/initialize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookSlug: 'the-healthy-you', ...buyer }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error?.message || 'Checkout could not be started.')
+    window.location.assign(payload.data.authorizationUrl)
+  } catch (error) {
+    checkoutError.value = error.message || 'Checkout could not be started. Please try again.'
+    checkoutLoading.value = false
+  }
+}
+
+onMounted(loadBook)
 </script>
 
 <template>
-  <div ref="root" class="book-page">
-    <section class="book-hero">
-      <div class="container book-hero-grid">
-        <div class="book-hero-cover" data-page-hero><BookCover /></div>
-        <div class="book-hero-copy" data-page-hero><RouterLink to="/publications" class="back-link"><ArrowLeft :size="17" /> All publications</RouterLink><p class="eyebrow">A book by Princess Oluwatoyin Emmanuel</p><h1>The <span>Healthy</span> You</h1><p>The official book description and edition details are being prepared. This page will become the central destination for previews, availability, and purchasing information.</p><div class="book-status"><span><Check :size="16" /> Founder-authored publication</span><span><BookOpen :size="16" /> Format details coming soon</span></div><RouterLink to="/contact" class="button button-yellow">Ask About Availability <ArrowRight :size="18" /></RouterLink></div>
+  <div ref="root" class="book-page book-sales-page">
+    <section class="book-sales-hero">
+      <div class="container book-sales-grid">
+        <div class="book-sales-visual" data-page-hero>
+          <RouterLink to="/publications" class="back-link"><ArrowLeft :size="17" /> Edyn Library</RouterLink>
+          <div class="sales-cover-wrap"><div class="sales-cover-orbit" /><BookCover /></div>
+          <div class="sales-trust-row"><span><ShieldCheck :size="16" /> Secure payment</span><span><BadgeCheck :size="16" /> Author-approved edition</span></div>
+        </div>
+
+        <div class="book-sales-copy" data-page-hero>
+          <p class="eyebrow">A transformational guide by Princess Oluwatoyin Emmanuel</p>
+          <div class="book-available-badge"><span /> Now available</div>
+          <h1>Become a healthier, more confident <em>you.</em></h1>
+          <p class="book-sales-subtitle">The Healthy You is a practical invitation to understand your wellbeing, build sustainable habits, and move towards a healthier life with clarity and confidence.</p>
+          <ul class="hero-book-benefits"><li><CheckCircle2 /> Practical ideas you can apply to everyday life</li><li><CheckCircle2 /> A thoughtful approach to sustainable wellbeing</li><li><CheckCircle2 /> Encouragement for your personal health journey</li></ul>
+
+          <div id="buy-book" class="book-checkout-card">
+            <div class="checkout-heading"><div><span>Get your copy</span><strong v-if="!loadingBook">{{ formattedPrice }}</strong><strong v-else class="price-loading">Loading price…</strong></div><CreditCard :size="27" /></div>
+            <form @submit.prevent="beginCheckout">
+              <label><span>Your name</span><input v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
+              <label><span>Email address</span><input v-model.trim="buyer.customerEmail" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
+              <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutLoading ? 'Opening secure checkout…' : canPurchase ? `Buy now — ${formattedPrice}` : 'Online purchase opening soon' }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
+            </form>
+            <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
+            <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by Paystack. Your payment details never pass through our website.</span></div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="section book-overview"><div class="container book-content-grid"><aside data-reveal><p class="eyebrow">Publication details</p><dl><div><dt>Title</dt><dd>The Healthy You</dd></div><div><dt>Author</dt><dd>Princess Oluwatoyin Emmanuel</dd></div><div><dt>Publisher</dt><dd>To be confirmed</dd></div><div><dt>Formats</dt><dd>To be announced</dd></div><div><dt>Availability</dt><dd>Enquire for details</dd></div></dl></aside><div class="prose large" data-reveal><h2>About the book</h2><p>The official synopsis will appear here once the final publication copy has been supplied. This section is designed to explain the book's central message, the reader it serves, and the transformation it hopes to encourage.</p><h2>What readers can expect</h2><ul class="book-expectations"><li><Check /> Clear, thoughtfully presented ideas</li><li><Check /> Practical insights readers can reflect on</li><li><Check /> A purposeful perspective from the author</li></ul><p class="editorial-note">Publication language on this page is intentionally provisional until the final synopsis and edition information are approved.</p></div></div></section>
+    <section class="section book-reader-section"><div class="container"><header class="section-heading" data-reveal><p class="eyebrow">Is this book for you?</p><h2>A thoughtful companion for your wellbeing journey</h2><p>Created for readers who are ready to make intentional choices, understand themselves better, and build a healthier relationship with everyday living.</p></header><div class="reader-cards"><article data-reveal><HeartPulse /><h3>You want healthier habits</h3><p>You are looking for practical encouragement that helps positive choices feel realistic and sustainable.</p></article><article data-reveal><Target /><h3>You need a clearer path</h3><p>You want to move beyond quick fixes and approach your goals with purpose, patience, and direction.</p></article><article data-reveal><Sparkles /><h3>You are ready for change</h3><p>You believe a more confident and empowered version of yourself is possible—and you are ready to begin.</p></article></div></div></section>
 
-    <section class="section author-book-section"><div class="container author-book-grid"><div class="author-book-photo" data-reveal><img :src="ceoImage" alt="Princess Oluwatoyin Emmanuel" loading="lazy" /></div><div data-reveal><p class="eyebrow">About the author</p><h2>Princess Oluwatoyin Emmanuel</h2><p>Princess is the Founder and Creative Director of Edyn Digital Hub, a multidisciplinary digital professional, educational product developer, and author committed to creating resources that inform, empower, and inspire growth.</p><RouterLink to="/about" class="text-link">Meet the Founder <ArrowRight :size="17" /></RouterLink></div></div></section>
+    <section class="section book-inside-section"><div class="container book-inside-grid"><div data-reveal><p class="eyebrow">Inside the book</p><h2>More than information—a guide towards intentional living</h2><p>The Healthy You brings wellbeing into a personal, approachable conversation. It encourages readers to reflect, make informed choices, and pursue progress that can last.</p><div class="inside-highlight"><Lightbulb :size="24" /><div><strong>Read. Reflect. Apply.</strong><span>Use the ideas as a starting point for practical personal action.</span></div></div></div><div class="book-learning-list" data-reveal><p>What you’ll take away</p><ul><li><span>01</span><div><strong>A healthier perspective</strong><small>Look at wellbeing as a whole-person journey rather than a temporary goal.</small></div></li><li><span>02</span><div><strong>Practical personal insight</strong><small>Reflect on the patterns and choices shaping your everyday health.</small></div></li><li><span>03</span><div><strong>Motivation to move forward</strong><small>Build confidence to take meaningful, sustainable steps.</small></div></li></ul></div></div></section>
 
-    <section class="section book-updates"><div class="container book-updates-card" data-reveal><Mail :size="34" /><div><p class="eyebrow">Book updates</p><h2>Want publication and availability updates?</h2><p>Join the Edyn resources list or contact us directly for information about <em>The Healthy You</em>.</p></div><RouterLink to="/resources" class="button button-yellow">Get Updates <ArrowRight :size="18" /></RouterLink></div></section>
-    <CallToAction eyebrow="Publication enquiries" title="Interested in The Healthy You?" text="Contact us for current availability, purchasing information, partnerships, or bulk-order enquiries." label="Contact Edyn Digital Hub" />
+    <section class="section author-book-section"><div class="container author-book-grid"><div class="author-book-photo" data-reveal><img :src="ceoImage" alt="Princess Oluwatoyin Emmanuel" loading="lazy" /></div><div data-reveal><p class="eyebrow">Meet the author</p><h2>Princess Oluwatoyin Emmanuel</h2><p>Princess is the Founder and Creative Director of Edyn Digital Hub, a multidisciplinary digital professional, educational product developer, and author committed to creating resources that inform, empower, and inspire meaningful growth.</p><blockquote>“The journey to a healthier you begins with understanding, intentional choices, and the courage to keep growing.”</blockquote><RouterLink to="/about" class="text-link">Meet the Founder <ArrowRight :size="17" /></RouterLink></div></div></section>
+
+    <section class="section purchase-final-section"><div class="container purchase-final-card" data-reveal><div><p class="eyebrow light">Begin your journey</p><h2>Your healthier chapter can start today.</h2><p>Get your copy of <em>The Healthy You</em> through our secure checkout.</p></div><a href="#buy-book" class="button button-yellow">Get The Healthy You <ArrowRight :size="18" /></a></div></section>
+    <a href="#buy-book" class="mobile-buy-bar"><BookOpen :size="17" /><span>Get the book</span><strong>{{ formattedPrice }}</strong></a>
   </div>
 </template>
+
+<style scoped>
+.book-sales-hero { background: radial-gradient(circle at 8% 15%, rgba(255,196,0,.18),transparent 24%),var(--surface); overflow:hidden; padding:135px 0 90px; position:relative; }
+.book-sales-hero::after { background-image:radial-gradient(var(--gold) 1.1px,transparent 1.1px); background-size:21px 21px; content:''; height:280px; opacity:.22; position:absolute; right:-75px; top:120px; width:280px; }
+.book-sales-grid { align-items:center; display:grid; gap:85px; grid-template-columns:.78fr 1.22fr; position:relative; z-index:2; }
+.book-sales-visual .back-link { align-items:center; color:var(--muted); display:flex; font-size:.76rem; font-weight:700; gap:7px; margin-bottom:25px; }
+.sales-cover-wrap { display:flex; justify-content:center; padding:20px; position:relative; }
+.sales-cover-orbit { background:linear-gradient(145deg,var(--yellow),#ffdc56); border-radius:46% 54% 60% 40%/48% 40% 60% 52%; height:390px; left:50%; opacity:.8; position:absolute; top:50%; transform:translate(-50%,-50%) rotate(-8deg); width:390px; }
+.sales-cover-wrap :deep(.book-cover) { max-width:315px; position:relative; z-index:2; }
+.sales-trust-row { color:var(--muted); display:flex; flex-wrap:wrap; font-size:.66rem; gap:16px; justify-content:center; margin-top:25px; }.sales-trust-row span { align-items:center; display:flex; gap:5px; }.sales-trust-row svg { color:var(--green); }
+.book-available-badge { align-items:center; background:color-mix(in srgb,var(--green) 10%,var(--card)); border-radius:999px; color:var(--green); display:inline-flex; font-size:.66rem; font-weight:800; gap:7px; margin-top:18px; padding:7px 11px; text-transform:uppercase; }.book-available-badge span { background:var(--fresh-green); border-radius:50%; height:7px; width:7px; }
+.book-sales-copy h1 { font:800 clamp(3rem,5.4vw,5.25rem)/.98 'Manrope'; letter-spacing:-.065em; margin:15px 0 21px; max-width:760px; }.book-sales-copy h1 em { color:var(--green); font-style:normal; }
+.book-sales-subtitle { color:var(--muted); font-size:.98rem; line-height:1.75; max-width:690px; }
+.hero-book-benefits { display:grid; gap:9px; list-style:none; margin:23px 0 28px; padding:0; }.hero-book-benefits li { align-items:center; color:var(--text-soft); display:flex; font-size:.79rem; gap:9px; }.hero-book-benefits svg { color:var(--fresh-green); flex-shrink:0; height:18px; }
+.book-checkout-card { background:var(--card); border:1px solid var(--border); border-radius:20px; box-shadow:0 20px 55px rgba(15,50,22,.1); max-width:670px; padding:25px; }
+.checkout-heading { align-items:center; border-bottom:1px solid var(--border); color:var(--green); display:flex; justify-content:space-between; margin-bottom:18px; padding-bottom:16px; }.checkout-heading span,.checkout-heading strong { display:block; }.checkout-heading span { color:var(--muted); font-size:.66rem; font-weight:700; margin-bottom:3px; text-transform:uppercase; }.checkout-heading strong { color:var(--text); font:800 1.55rem 'Manrope'; }.checkout-heading .price-loading { color:var(--muted); font-size:1rem; }
+.book-checkout-card form { display:grid; gap:12px; grid-template-columns:repeat(2,1fr); }.book-checkout-card label>span { display:block; font-size:.66rem; font-weight:700; margin:0 0 6px 2px; }.book-checkout-card input { background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); min-height:47px; outline:0; padding:0 13px; width:100%; }.book-checkout-card input:focus { border-color:var(--fresh-green); box-shadow:0 0 0 3px rgba(63,174,42,.1); }
+.checkout-button { align-items:center; background:linear-gradient(135deg,var(--green),var(--green-dark)); border:0; border-radius:10px; color:white; cursor:pointer; display:flex; font-size:.76rem; font-weight:800; gap:8px; grid-column:1/-1; justify-content:center; min-height:50px; margin-top:2px; }.checkout-button:disabled { cursor:not-allowed; opacity:.58; }.checkout-spinner { animation:checkout-spin .8s linear infinite; }
+.checkout-error { background:#fff0f0; border-radius:8px; color:#b42318; font-size:.7rem; margin:12px 0 0; padding:9px 11px; }.checkout-assurance { align-items:flex-start; color:var(--muted); display:flex; font-size:.62rem; gap:7px; line-height:1.5; margin-top:13px; }.checkout-assurance svg { color:var(--green); flex-shrink:0; }
+.book-reader-section { background:var(--background); }.reader-cards { display:grid; gap:20px; grid-template-columns:repeat(3,1fr); }.reader-cards article { background:var(--card); border:1px solid var(--border); border-radius:19px; padding:32px; }.reader-cards svg { color:var(--green); height:32px; width:32px; }.reader-cards h3 { font:700 1.15rem 'Manrope'; margin:20px 0 9px; }.reader-cards p { color:var(--muted); font-size:.83rem; line-height:1.7; margin:0; }
+.book-inside-section { background:var(--surface-soft); }.book-inside-grid { align-items:center; display:grid; gap:95px; grid-template-columns:1fr 1fr; }.book-inside-grid h2 { font:800 clamp(2.2rem,4vw,3.6rem)/1.08 'Manrope'; letter-spacing:-.05em; margin:10px 0 18px; }.book-inside-grid>div:first-child>p:last-of-type { color:var(--muted); line-height:1.8; }.inside-highlight { align-items:center; background:var(--card); border-left:3px solid var(--yellow); border-radius:10px; display:flex; gap:14px; margin-top:25px; padding:17px; }.inside-highlight svg { color:var(--green); flex-shrink:0; }.inside-highlight strong,.inside-highlight span { display:block; }.inside-highlight strong { font-size:.8rem; }.inside-highlight span { color:var(--muted); font-size:.69rem; margin-top:3px; }
+.book-learning-list { background:var(--card); border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow); padding:32px; }.book-learning-list>p { color:var(--green); font-size:.66rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }.book-learning-list ul { list-style:none; margin:20px 0 0; padding:0; }.book-learning-list li { border-top:1px solid var(--border); display:grid; gap:16px; grid-template-columns:auto 1fr; padding:18px 0; }.book-learning-list li>span { color:var(--gold); font:800 1.1rem 'Manrope'; }.book-learning-list strong,.book-learning-list small { display:block; }.book-learning-list strong { font-size:.84rem; }.book-learning-list small { color:var(--muted); line-height:1.55; margin-top:5px; }
+.author-book-section blockquote { border-left:3px solid var(--yellow); color:var(--text-soft); font:600 1rem/1.65 'Manrope'; margin:25px 0; padding:4px 0 4px 18px; }
+.purchase-final-section { background:var(--background); padding-bottom:120px; }.purchase-final-card { align-items:center; background:linear-gradient(135deg,var(--deep-green),var(--green)); border-radius:28px; color:white; display:flex; justify-content:space-between; overflow:hidden; padding:52px 60px; position:relative; }.purchase-final-card::after { background:var(--yellow); border-radius:50%; content:''; height:250px; opacity:.13; position:absolute; right:-80px; top:-120px; width:250px; }.purchase-final-card h2 { font:800 clamp(2rem,4vw,3.4rem)/1.1 'Manrope'; letter-spacing:-.045em; margin:10px 0; }.purchase-final-card p:last-child { color:#d6e5d7; margin:0; }.purchase-final-card .button { flex-shrink:0; position:relative; z-index:2; }
+.mobile-buy-bar { display:none; }
+@keyframes checkout-spin { to { transform:rotate(360deg); } }
+@media(max-width:900px){.book-sales-grid,.book-inside-grid{gap:55px;grid-template-columns:1fr}.book-sales-visual{margin:auto;max-width:520px;width:100%}.book-sales-copy{text-align:left}.reader-cards{grid-template-columns:1fr}.purchase-final-card{align-items:flex-start;flex-direction:column;gap:25px;padding:42px 35px}.book-sales-copy h1{font-size:clamp(3rem,11vw,5rem)}}
+@media(max-width:620px){.book-sales-hero{padding:118px 0 65px}.sales-cover-orbit{height:300px;width:300px}.sales-cover-wrap :deep(.book-cover){max-width:250px}.book-checkout-card{padding:19px}.book-checkout-card form{grid-template-columns:1fr}.book-checkout-card form>*{grid-column:1}.book-inside-grid{gap:38px}.reader-cards article,.book-learning-list{padding:25px}.purchase-final-card{padding:36px 24px}.purchase-final-card .button{width:100%}.purchase-final-section{padding-bottom:105px}.mobile-buy-bar{align-items:center;background:var(--yellow);bottom:12px;border-radius:999px;box-shadow:0 12px 35px rgba(0,0,0,.22);color:var(--deep-green);display:flex;font-size:.72rem;font-weight:800;gap:8px;justify-content:center;left:16px;min-height:53px;padding:0 18px;position:fixed;right:16px;z-index:45}.mobile-buy-bar strong{margin-left:auto}.sales-trust-row{justify-content:flex-start}}
+</style>

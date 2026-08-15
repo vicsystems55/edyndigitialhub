@@ -24,7 +24,7 @@ const upcomingBooks = [
     <section class="section publication-feature">
       <div class="container publication-feature-grid">
         <div class="featured-cover-wrap" data-reveal><div class="cover-orbit"></div><BookCover /></div>
-        <div data-reveal><p class="eyebrow">Latest from the library</p><span class="latest-release-badge">Featured book</span><h2>The Healthy You</h2><p class="publication-byline">By Princess Oluwatoyin Emmanuel</p><p class="publication-description">The latest featured title in the Edyn Library. Explore the dedicated book page for its story, publication details, availability updates, and enquiries.</p><div class="publication-meta"><span><BookOpen :size="18" /> Latest title</span><span><Feather :size="18" /> Founder-authored</span></div><RouterLink to="/publications/the-healthy-you" class="button button-green">Explore the Book <ArrowRight :size="18" /></RouterLink></div>
+        <div data-reveal><p class="eyebrow">Latest from the library</p><span class="latest-release-badge">Available now</span><h2>The Healthy You</h2><p class="publication-byline">By Princess Oluwatoyin Emmanuel</p><p class="publication-description">A practical guide created to inspire healthier choices, sustainable personal growth, and a more confident approach to wellbeing.</p><div class="publication-meta"><span><BookOpen :size="18" /> Latest title</span><span><Feather :size="18" /> Founder-authored</span></div><RouterLink to="/publications/the-healthy-you" class="button button-green">View Details & Buy <ArrowRight :size="18" /></RouterLink></div>
       </div>
     </section>
 
