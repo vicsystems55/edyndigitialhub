@@ -45,7 +45,7 @@ async function beginCheckout() {
     const response = await fetch(`${apiUrl}/api/v1/payments/initialize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookSlug: 'the-healthy-you', ...buyer }),
+      body: JSON.stringify({ bookSlug: 'the-healthy-you', paymentProvider: 'paystack', ...buyer }),
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'Checkout could not be started.')
@@ -78,6 +78,11 @@ onMounted(loadBook)
 
           <div id="buy-book" class="book-checkout-card">
             <div class="checkout-heading"><div><span>Get your copy</span><strong v-if="!loadingBook">{{ formattedPrice }}</strong><strong v-else class="price-loading">Loading price…</strong></div><CreditCard :size="27" /></div>
+            <div class="payment-method" aria-label="Selected payment method">
+              <span class="payment-method-mark">P</span>
+              <div><strong>Paystack</strong><small>Card, bank transfer and supported local payment methods</small></div>
+              <span class="payment-active"><i /> Active</span>
+            </div>
             <form @submit.prevent="beginCheckout">
               <label><span>Your name</span><input v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
               <label><span>Email address</span><input v-model.trim="buyer.customerEmail" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
@@ -116,6 +121,7 @@ onMounted(loadBook)
 .hero-book-benefits { display:grid; gap:9px; list-style:none; margin:23px 0 28px; padding:0; }.hero-book-benefits li { align-items:center; color:var(--text-soft); display:flex; font-size:.79rem; gap:9px; }.hero-book-benefits svg { color:var(--fresh-green); flex-shrink:0; height:18px; }
 .book-checkout-card { background:var(--card); border:1px solid var(--border); border-radius:20px; box-shadow:0 20px 55px rgba(15,50,22,.1); max-width:670px; padding:25px; }
 .checkout-heading { align-items:center; border-bottom:1px solid var(--border); color:var(--green); display:flex; justify-content:space-between; margin-bottom:18px; padding-bottom:16px; }.checkout-heading span,.checkout-heading strong { display:block; }.checkout-heading span { color:var(--muted); font-size:.66rem; font-weight:700; margin-bottom:3px; text-transform:uppercase; }.checkout-heading strong { color:var(--text); font:800 1.55rem 'Manrope'; }.checkout-heading .price-loading { color:var(--muted); font-size:1rem; }
+.payment-method { align-items:center;background:color-mix(in srgb,var(--green) 7%,var(--card));border:1px solid color-mix(in srgb,var(--green) 28%,var(--border));border-radius:11px;display:grid;gap:10px;grid-template-columns:auto 1fr auto;margin-bottom:17px;padding:12px; }.payment-method-mark { align-items:center;background:var(--green);border-radius:8px;color:white;display:flex;font:800 .9rem 'Manrope';height:34px;justify-content:center;width:34px; }.payment-method strong,.payment-method small{display:block}.payment-method strong{font-size:.72rem}.payment-method small{color:var(--muted);font-size:.58rem;margin-top:3px}.payment-active{align-items:center;background:color-mix(in srgb,var(--fresh-green) 13%,var(--card));border-radius:999px;color:var(--green);display:flex;font-size:.58rem;font-weight:800;gap:5px;padding:6px 8px}.payment-active i{background:var(--fresh-green);border-radius:50%;height:6px;width:6px}
 .book-checkout-card form { display:grid; gap:12px; grid-template-columns:repeat(2,1fr); }.book-checkout-card label>span { display:block; font-size:.66rem; font-weight:700; margin:0 0 6px 2px; }.book-checkout-card input { background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); min-height:47px; outline:0; padding:0 13px; width:100%; }.book-checkout-card input:focus { border-color:var(--fresh-green); box-shadow:0 0 0 3px rgba(63,174,42,.1); }
 .checkout-button { align-items:center; background:linear-gradient(135deg,var(--green),var(--green-dark)); border:0; border-radius:10px; color:white; cursor:pointer; display:flex; font-size:.76rem; font-weight:800; gap:8px; grid-column:1/-1; justify-content:center; min-height:50px; margin-top:2px; }.checkout-button:disabled { cursor:not-allowed; opacity:.58; }.checkout-spinner { animation:checkout-spin .8s linear infinite; }
 .checkout-error { background:#fff0f0; border-radius:8px; color:#b42318; font-size:.7rem; margin:12px 0 0; padding:9px 11px; }.checkout-assurance { align-items:flex-start; color:var(--muted); display:flex; font-size:.62rem; gap:7px; line-height:1.5; margin-top:13px; }.checkout-assurance svg { color:var(--green); flex-shrink:0; }
@@ -128,4 +134,5 @@ onMounted(loadBook)
 @keyframes checkout-spin { to { transform:rotate(360deg); } }
 @media(max-width:900px){.book-sales-grid,.book-inside-grid{gap:55px;grid-template-columns:1fr}.book-sales-visual{margin:auto;max-width:520px;width:100%}.book-sales-copy{text-align:left}.reader-cards{grid-template-columns:1fr}.purchase-final-card{align-items:flex-start;flex-direction:column;gap:25px;padding:42px 35px}.book-sales-copy h1{font-size:clamp(3rem,11vw,5rem)}}
 @media(max-width:620px){.book-sales-hero{padding:118px 0 65px}.sales-cover-orbit{height:300px;width:300px}.sales-cover-wrap :deep(.book-cover){max-width:250px}.book-checkout-card{padding:19px}.book-checkout-card form{grid-template-columns:1fr}.book-checkout-card form>*{grid-column:1}.book-inside-grid{gap:38px}.reader-cards article,.book-learning-list{padding:25px}.purchase-final-card{padding:36px 24px}.purchase-final-card .button{width:100%}.purchase-final-section{padding-bottom:105px}.mobile-buy-bar{align-items:center;background:var(--yellow);bottom:12px;border-radius:999px;box-shadow:0 12px 35px rgba(0,0,0,.22);color:var(--deep-green);display:flex;font-size:.72rem;font-weight:800;gap:8px;justify-content:center;left:16px;min-height:53px;padding:0 18px;position:fixed;right:16px;z-index:45}.mobile-buy-bar strong{margin-left:auto}.sales-trust-row{justify-content:flex-start}}
+@media(max-width:460px){.payment-method{grid-template-columns:auto 1fr}.payment-active{grid-column:2;justify-self:start}}
 </style>

@@ -77,7 +77,15 @@ async function saveSettings() {
 }
 
 function chooseFile(event) {
-  ebook.value = event.target.files?.[0] || null
+  const selected = event.target.files?.[0] || null
+  error.value = ''
+  if (selected && selected.size > 10 * 1024 * 1024) {
+    ebook.value = null
+    event.target.value = ''
+    error.value = 'The ebook is too large for the current Cloudinary plan. Maximum upload size is 10 MB.'
+    return
+  }
+  ebook.value = selected
 }
 
 async function uploadEbook() {
@@ -140,7 +148,7 @@ onMounted(loadBooks)
           <div class="card-heading"><div><p>Secure delivery</p><h3>Ebook file</h3></div><FileUp :size="22" /></div>
           <div v-if="selectedBook.ebookAssetId" class="current-file"><CheckCircle2 :size="21" /><div><strong>{{ selectedBook.ebookOriginalName || 'Protected ebook.pdf' }}</strong><span>{{ formatBytes(selectedBook.ebookBytes) }} · Cloudinary authenticated asset</span><small v-if="selectedBook.ebookUploadedAt">Uploaded {{ new Date(selectedBook.ebookUploadedAt).toLocaleString() }}</small></div></div>
           <div v-else class="current-file empty"><BookOpen :size="21" /><div><strong>No ebook uploaded</strong><span>Upload the sale-ready PDF before enabling purchases.</span></div></div>
-          <label class="file-picker"><FileUp :size="25" /><strong>{{ ebook ? ebook.name : 'Choose the ebook PDF' }}</strong><span>PDF only · protected, signed Cloudinary upload</span><input type="file" accept="application/pdf,.pdf" @change="chooseFile" /></label>
+          <label class="file-picker"><FileUp :size="25" /><strong>{{ ebook ? ebook.name : 'Choose the ebook PDF' }}</strong><span>PDF only · maximum 10 MB on Cloudinary Free · protected signed upload</span><input type="file" accept="application/pdf,.pdf" @change="chooseFile" /></label>
           <button class="admin-action secondary" type="button" :disabled="!ebook || uploading" @click="uploadEbook"><LoaderCircle v-if="uploading" class="spin" :size="17" /><FileUp v-else :size="17" />{{ uploading ? 'Uploading…' : selectedBook.ebookAssetId ? 'Replace ebook' : 'Upload ebook' }}</button>
           <p class="security-note">The PDF is never exposed as a permanent public URL. Paid orders receive a limited-use grant that redirects to a short-lived signed download.</p>
         </article>
