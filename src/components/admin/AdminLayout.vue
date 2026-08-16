@@ -30,7 +30,7 @@ const navigation = [
   { label: 'Analytics & Views', to: '/admin/analytics', icon: BarChart3 },
   { label: 'Sales & Orders', to: '/admin/sales', icon: ReceiptText },
   { label: 'Publications', to: '/admin/publications', icon: BookOpen },
-  { label: 'Contact Messages', to: '/admin/messages', icon: MessageSquare, badge: '3' },
+  { label: 'Contact Messages', to: '/admin/messages', icon: MessageSquare },
   { label: 'Newsletter', to: '/admin/newsletter', icon: Mail },
   { label: 'Settings', to: '/admin/settings', icon: Settings },
 ]

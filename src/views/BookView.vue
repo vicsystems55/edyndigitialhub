@@ -24,6 +24,13 @@ const formattedPrice = computed(() => {
   }).format(book.value.priceMinor / 100)
 })
 const canPurchase = computed(() => Boolean(book.value?.canPurchase))
+const checkoutButtonLabel = computed(() => {
+  if (checkoutLoading.value) return 'Opening secure checkout…'
+  if (!book.value?.priceMinor) return 'Set the book price in admin'
+  if (!book.value?.downloadsEnabled) return 'Ebook delivery is not ready'
+  if (!book.value?.purchasesEnabled) return 'Enable purchases in admin'
+  return `Buy now — ${formattedPrice.value}`
+})
 
 async function loadBook() {
   try {
@@ -86,7 +93,7 @@ onMounted(loadBook)
             <form @submit.prevent="beginCheckout">
               <label><span>Your name</span><input v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
               <label><span>Email address</span><input v-model.trim="buyer.customerEmail" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
-              <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutLoading ? 'Opening secure checkout…' : canPurchase ? `Buy now — ${formattedPrice}` : 'Online purchase opening soon' }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
+              <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutButtonLabel }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
             </form>
             <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
             <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by Paystack. Your payment details never pass through our website.</span></div>

@@ -17,6 +17,7 @@ const AdminLoginView = () => import('../views/admin/AdminLoginView.vue')
 const AdminLayout = () => import('../components/admin/AdminLayout.vue')
 const AdminDashboardView = () => import('../views/admin/AdminDashboardView.vue')
 const AdminPublicationsView = () => import('../views/admin/AdminPublicationsView.vue')
+const AdminSalesView = () => import('../views/admin/AdminSalesView.vue')
 const AdminSectionView = () => import('../views/admin/AdminSectionView.vue')
 
 const router = createRouter({
@@ -47,7 +48,7 @@ const router = createRouter({
       children: [
         { path: '', name: 'admin-dashboard', component: AdminDashboardView, meta: { title: 'Dashboard', admin: true, requiresAdminAuth: true } },
         { path: 'analytics', name: 'admin-analytics', component: AdminSectionView, meta: { title: 'Analytics & Views', admin: true, requiresAdminAuth: true, section: 'analytics', description: 'Monitor website traffic, page performance and visitor activity.' } },
-        { path: 'sales', name: 'admin-sales', component: AdminSectionView, meta: { title: 'Sales & Orders', admin: true, requiresAdminAuth: true, section: 'sales', description: 'Track Paystack payments, book orders and download fulfilment.' } },
+        { path: 'sales', name: 'admin-sales', component: AdminSalesView, meta: { title: 'Sales & Orders', admin: true, requiresAdminAuth: true } },
         { path: 'publications', name: 'admin-publications', component: AdminPublicationsView, meta: { title: 'Publications', admin: true, requiresAdminAuth: true } },
         { path: 'messages', name: 'admin-messages', component: AdminSectionView, meta: { title: 'Contact Messages', admin: true, requiresAdminAuth: true, section: 'messages', description: 'Review and respond to enquiries submitted through the website.' } },
         { path: 'newsletter', name: 'admin-newsletter', component: AdminSectionView, meta: { title: 'Newsletter', admin: true, requiresAdminAuth: true, section: 'newsletter', description: 'Manage subscribers and export the mailing list.' } },
@@ -76,6 +77,20 @@ router.beforeEach(async (to) => {
 
 router.afterEach((to) => {
   document.title = `${to.meta.title || 'Your Digital Partner'} | Edyn Digital Hub`
+  if (!to.path.startsWith('/admin')) {
+    const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+    let sessionId = sessionStorage.getItem('edyn-visitor-session')
+    if (!sessionId) {
+      sessionId = crypto.randomUUID()
+      sessionStorage.setItem('edyn-visitor-session', sessionId)
+    }
+    fetch(`${apiUrl}/api/v1/analytics/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: to.fullPath, sessionId, referrer: document.referrer || undefined }),
+      keepalive: true,
+    }).catch(() => undefined)
+  }
 })
 
 export default router
