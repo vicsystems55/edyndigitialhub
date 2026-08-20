@@ -8,6 +8,7 @@ const books = ref([])
 const selectedSlug = ref('')
 const price = ref('')
 const currency = ref('NGN')
+const paypalPrice = ref('')
 const purchasesEnabled = ref(false)
 const downloadsEnabled = ref(false)
 const ebook = ref(null)
@@ -23,6 +24,7 @@ function selectBook(book) {
   selectedSlug.value = book.slug
   price.value = book.priceMinor == null ? '' : (book.priceMinor / 100).toFixed(2)
   currency.value = book.currency || 'NGN'
+  paypalPrice.value = book.paypalPriceMinor == null ? '' : (book.paypalPriceMinor / 100).toFixed(2)
   purchasesEnabled.value = Boolean(book.purchasesEnabled)
   downloadsEnabled.value = Boolean(book.downloadsEnabled)
   ebook.value = null
@@ -61,11 +63,13 @@ async function saveSettings() {
   error.value = ''
   try {
     const amount = price.value === '' ? null : Math.round(Number(price.value) * 100)
+    const paypalAmount = paypalPrice.value === '' ? null : Math.round(Number(paypalPrice.value) * 100)
     if (amount !== null && (!Number.isFinite(amount) || amount <= 0)) throw new Error('Enter a valid price greater than zero.')
+    if (paypalAmount !== null && (!Number.isFinite(paypalAmount) || paypalAmount <= 0)) throw new Error('Enter a valid PayPal USD price greater than zero.')
     await request(`/admin/publications/${encodeURIComponent(selectedSlug.value)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ priceMinor: amount, currency: currency.value, purchasesEnabled: purchasesEnabled.value, downloadsEnabled: downloadsEnabled.value }),
+      body: JSON.stringify({ priceMinor: amount, currency: currency.value, paypalPriceMinor: paypalAmount, purchasesEnabled: purchasesEnabled.value, downloadsEnabled: downloadsEnabled.value }),
     })
     await loadBooks(selectedSlug.value)
     notice.value = 'Publication settings saved.'
@@ -139,6 +143,10 @@ onMounted(loadBooks)
             <div class="price-input"><span>₦</span><input v-model="price" inputmode="decimal" placeholder="0.00" /></div>
           </label>
           <label>Currency<select v-model="currency"><option value="NGN">NGN — Nigerian Naira</option><option value="USD">USD — US Dollar</option></select></label>
+          <label>PayPal price (USD)
+            <div class="price-input"><span>$</span><input v-model="paypalPrice" inputmode="decimal" placeholder="0.00" /></div>
+            <small class="field-help">Set separately because PayPal branded checkout does not process NGN.</small>
+          </label>
           <label class="toggle-row"><span><strong>Enable purchases</strong><small>Allow customers to pay for this publication.</small></span><input v-model="purchasesEnabled" type="checkbox" /></label>
           <label class="toggle-row"><span><strong>Enable downloads</strong><small>Issue protected links after verified payment.</small></span><input v-model="downloadsEnabled" type="checkbox" /></label>
           <button class="admin-action" type="button" :disabled="saving" @click="saveSettings"><LoaderCircle v-if="saving" class="spin" :size="17" /><Save v-else :size="17" />{{ saving ? 'Saving…' : 'Save settings' }}</button>
@@ -159,4 +167,5 @@ onMounted(loadBooks)
 
 <style scoped>
 .manager-heading{margin-bottom:25px}.manager-heading p,.card-heading p{color:var(--green);font-size:.64rem;font-weight:800;letter-spacing:.11em;margin:0 0 6px;text-transform:uppercase}.manager-heading h2{font:800 clamp(1.7rem,3vw,2.3rem) 'Manrope';letter-spacing:-.04em;margin:0 0 6px}.manager-heading span{color:var(--muted);font-size:.82rem}.manager-state{align-items:center;background:var(--card);border:1px solid var(--border);border-radius:17px;color:var(--muted);display:flex;gap:11px;justify-content:center;min-height:320px}.publication-tabs{display:flex;gap:9px;margin-bottom:17px;overflow-x:auto;padding-bottom:3px}.publication-tabs button{background:var(--card);border:1px solid var(--border);border-radius:11px;color:var(--text);cursor:pointer;display:flex;flex:0 0 auto;flex-direction:column;gap:3px;min-width:160px;padding:12px 15px;text-align:left}.publication-tabs button.active{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}.publication-tabs span{font-size:.73rem;font-weight:800}.publication-tabs small{color:var(--muted);font-size:.57rem;text-transform:capitalize}.manager-alert{align-items:center;border-radius:9px;display:flex;font-size:.7rem;gap:7px;margin:0 0 14px;padding:10px 13px}.manager-alert.success{background:#e4f4df;color:var(--green)}.manager-alert.error{background:#fff0f0;color:#b42318}.manager-grid{display:grid;gap:17px;grid-template-columns:1fr 1fr}.manager-card{background:var(--card);border:1px solid var(--border);border-radius:17px;padding:23px}.card-heading{align-items:center;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:16px}.card-heading h3{font:800 1.15rem 'Manrope';margin:0}.card-heading>span{background:var(--surface-soft);border-radius:999px;color:var(--green);font-size:.61rem;font-weight:800;padding:6px 9px}.manager-card>label:not(.toggle-row):not(.file-picker){color:var(--muted);display:block;font-size:.65rem;font-weight:700;margin-bottom:15px}.manager-card input,.manager-card select{background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);font:inherit;outline:none;padding:11px;width:100%}.manager-card select{margin-top:7px}.price-input{align-items:center;display:flex;margin-top:7px;position:relative}.price-input span{color:var(--muted);left:12px;position:absolute}.price-input input{padding-left:30px}.toggle-row{align-items:center;border-top:1px solid var(--border);display:flex;gap:15px;justify-content:space-between;padding:15px 0}.toggle-row span strong,.toggle-row span small{display:block}.toggle-row strong{font-size:.72rem}.toggle-row small{color:var(--muted);font-size:.61rem;margin-top:3px}.toggle-row input{accent-color:var(--green);height:18px;width:18px}.admin-action{align-items:center;background:var(--green);border:0;border-radius:9px;color:white;cursor:pointer;display:flex;font-size:.7rem;font-weight:800;gap:7px;justify-content:center;margin-top:14px;min-height:42px;padding:0 15px;width:100%}.admin-action.secondary{background:var(--yellow);color:#111}.admin-action:disabled{cursor:not-allowed;opacity:.55}.current-file{align-items:flex-start;background:var(--surface-soft);border-radius:11px;color:var(--green);display:flex;gap:11px;margin-bottom:16px;padding:14px}.current-file.empty{color:var(--muted)}.current-file div strong,.current-file div span,.current-file div small{display:block}.current-file strong{color:var(--text);font-size:.69rem;overflow-wrap:anywhere}.current-file span,.current-file small{color:var(--muted);font-size:.59rem;margin-top:4px}.file-picker{align-items:center;border:1px dashed var(--green);border-radius:12px;color:var(--green);cursor:pointer;display:flex;flex-direction:column;padding:25px 15px;text-align:center}.file-picker strong{color:var(--text);font-size:.72rem;margin-top:8px;overflow-wrap:anywhere}.file-picker span{color:var(--muted);font-size:.59rem;margin-top:4px}.file-picker input{display:none}.security-note{color:var(--muted);font-size:.59rem;line-height:1.65;margin:14px 0 0}.spin{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:850px){.manager-grid{grid-template-columns:1fr}}@media(max-width:520px){.manager-card{padding:18px}}
+.field-help{color:var(--muted);display:block;font-size:.57rem;font-weight:500;line-height:1.5;margin-top:6px}
 </style>

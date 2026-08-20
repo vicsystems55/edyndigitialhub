@@ -2,20 +2,26 @@
 import { computed, onMounted, ref } from 'vue'
 import { AlertCircle, ArrowRight, CheckCircle2, LoaderCircle } from '@lucide/vue'
 import { useRoute } from 'vue-router'
+import { trackMetaPurchaseOnce } from '../services/metaPixel'
 
 const route = useRoute()
 const state = ref('loading')
 const order = ref(null)
-const message = ref('Confirming your payment securely with Paystack…')
+const message = ref('Confirming your payment securely…')
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const reference = computed(() => route.query.reference || route.query.trxref || '')
+const provider = computed(() => route.query.provider === 'paypal' ? 'paypal' : 'paystack')
+const paypalOrderId = computed(() => route.query.token || '')
 const downloadUrl = computed(() => order.value?.downloadPath ? `${apiUrl}${order.value.downloadPath}` : '')
 
 async function verifyPayment() {
   if (!reference.value) { state.value = 'error'; message.value = 'No payment reference was provided.'; return }
   state.value = 'loading'
   try {
-    const response = await fetch(`${apiUrl}/api/v1/payments/verify/${encodeURIComponent(reference.value)}`)
+    if (provider.value === 'paypal' && !paypalOrderId.value) throw new Error('No PayPal order reference was provided.')
+    const response = provider.value === 'paypal'
+      ? await fetch(`${apiUrl}/api/v1/payments/paypal/capture`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reference: reference.value, paypalOrderId: paypalOrderId.value }) })
+      : await fetch(`${apiUrl}/api/v1/payments/verify/${encodeURIComponent(reference.value)}`)
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'We could not confirm this payment.')
     order.value = payload.data
@@ -23,6 +29,16 @@ async function verifyPayment() {
     message.value = state.value === 'success'
       ? (payload.data.downloadPath ? 'Your payment is confirmed. Your secure ebook download is ready.' : 'Your payment has been confirmed successfully.')
       : 'Your payment is still being processed. Please check again shortly.'
+    if (state.value === 'success') {
+      trackMetaPurchaseOnce(String(payload.data.reference || reference.value), {
+        content_ids: [payload.data.book?.slug || 'the-healthy-you'],
+        content_name: payload.data.book?.title || 'The Healthy You',
+        content_type: 'product',
+        value: Number(payload.data.amountMinor || 0) / 100,
+        currency: payload.data.currency || 'NGN',
+        num_items: 1,
+      })
+    }
   } catch (error) { state.value = 'error'; message.value = error.message || 'We could not confirm this payment.' }
 }
 

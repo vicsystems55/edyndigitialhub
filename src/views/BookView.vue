@@ -5,12 +5,14 @@ import BookCover from '../components/common/BookCover.vue'
 import { usePageAnimations } from '../composables/usePageAnimations'
 import ceoImage from '../assets/images/ceo.png'
 import reviews from '../data/bookReviews.json'
+import { trackMetaEvent } from '../services/metaPixel'
 
 const root = ref(null)
 const loadingBook = ref(true)
 const checkoutLoading = ref(false)
 const checkoutError = ref('')
 const book = ref(null)
+const paymentProvider = ref('paystack')
 const buyer = reactive({ customerName: '', customerEmail: '' })
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
@@ -24,13 +26,20 @@ const formattedPrice = computed(() => {
     maximumFractionDigits: 0,
   }).format(book.value.priceMinor / 100)
 })
-const canPurchase = computed(() => Boolean(book.value?.canPurchase))
+const selectedPayment = computed(() => book.value?.paymentProviders?.[paymentProvider.value] || null)
+const checkoutPrice = computed(() => {
+  const payment = selectedPayment.value
+  if (!payment?.priceMinor) return paymentProvider.value === 'paypal' ? 'USD price unavailable' : formattedPrice.value
+  return new Intl.NumberFormat(payment.currency === 'USD' ? 'en-US' : 'en-NG', { style: 'currency', currency: payment.currency, maximumFractionDigits: payment.currency === 'USD' ? 2 : 0 }).format(payment.priceMinor / 100)
+})
+const canPurchase = computed(() => Boolean(book.value?.canPurchase && selectedPayment.value?.enabled))
 const checkoutButtonLabel = computed(() => {
   if (checkoutLoading.value) return 'Opening secure checkout…'
-  if (!book.value?.priceMinor) return 'Set the book price in admin'
+  if (!selectedPayment.value?.priceMinor) return 'Set the selected payment price in admin'
   if (!book.value?.downloadsEnabled) return 'Ebook delivery is not ready'
   if (!book.value?.purchasesEnabled) return 'Enable purchases in admin'
-  return `Buy now — ${formattedPrice.value}`
+  if (!selectedPayment.value?.enabled) return `${paymentProvider.value === 'paypal' ? 'PayPal' : 'Paystack'} is not available`
+  return `Buy with ${paymentProvider.value === 'paypal' ? 'PayPal' : 'Paystack'} — ${checkoutPrice.value}`
 })
 
 async function loadBook() {
@@ -39,6 +48,17 @@ async function loadBook() {
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'Unable to load purchasing details.')
     book.value = payload.data
+    if (!payload.data.paymentProviders?.paystack?.enabled && payload.data.paymentProviders?.paypal?.enabled) paymentProvider.value = 'paypal'
+    const viewPayment = payload.data.paymentProviders?.paystack?.enabled
+      ? payload.data.paymentProviders.paystack
+      : payload.data.paymentProviders?.paypal
+    trackMetaEvent('ViewContent', {
+      content_ids: ['the-healthy-you'],
+      content_name: payload.data.title || 'The Healthy You',
+      content_type: 'product',
+      value: viewPayment?.priceMinor ? viewPayment.priceMinor / 100 : undefined,
+      currency: viewPayment?.currency || 'NGN',
+    })
   } catch (error) {
     checkoutError.value = error.message || 'Unable to reach the store. Please try again shortly.'
   } finally {
@@ -49,11 +69,19 @@ async function loadBook() {
 async function beginCheckout() {
   checkoutError.value = ''
   checkoutLoading.value = true
+  trackMetaEvent('InitiateCheckout', {
+    content_ids: ['the-healthy-you'],
+    content_name: book.value?.title || 'The Healthy You',
+    content_type: 'product',
+    value: selectedPayment.value?.priceMinor ? selectedPayment.value.priceMinor / 100 : undefined,
+    currency: selectedPayment.value?.currency || 'NGN',
+    num_items: 1,
+  })
   try {
     const response = await fetch(`${apiUrl}/api/v1/payments/initialize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookSlug: 'the-healthy-you', paymentProvider: 'paystack', ...buyer }),
+      body: JSON.stringify({ bookSlug: 'the-healthy-you', paymentProvider: paymentProvider.value, ...buyer }),
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'Checkout could not be started.')
@@ -85,11 +113,14 @@ onMounted(loadBook)
           <ul class="hero-book-benefits"><li><CheckCircle2 /> Practical ideas you can apply to everyday life</li><li><CheckCircle2 /> A thoughtful approach to sustainable wellbeing</li><li><CheckCircle2 /> Encouragement for your personal health journey</li></ul>
 
           <div id="buy-book" class="book-checkout-card">
-            <div class="checkout-heading"><div><span>Get your copy</span><strong v-if="!loadingBook">{{ formattedPrice }}</strong><strong v-else class="price-loading">Loading price…</strong></div><CreditCard :size="27" /></div>
-            <div class="payment-method" aria-label="Selected payment method">
-              <span class="payment-method-mark">P</span>
-              <div><strong>Paystack</strong><small>Card, bank transfer and supported local payment methods</small></div>
-              <span class="payment-active"><i /> Active</span>
+            <div class="checkout-heading"><div><span>Get your copy</span><strong v-if="!loadingBook">{{ checkoutPrice }}</strong><strong v-else class="price-loading">Loading price…</strong></div><CreditCard :size="27" /></div>
+            <div class="payment-options" aria-label="Choose a payment method">
+              <button type="button" class="payment-method" :class="{ selected: paymentProvider === 'paystack' }" :disabled="!book?.paymentProviders?.paystack?.enabled" @click="paymentProvider = 'paystack'">
+                <span class="payment-method-mark">P</span><div><strong>Paystack</strong><small>Pay in naira by card, transfer or supported local methods</small></div><span class="payment-active"><i /> {{ book?.paymentProviders?.paystack?.enabled ? 'Available' : 'Unavailable' }}</span>
+              </button>
+              <button type="button" class="payment-method paypal" :class="{ selected: paymentProvider === 'paypal' }" :disabled="!book?.paymentProviders?.paypal?.enabled" @click="paymentProvider = 'paypal'">
+                <span class="payment-method-mark">PP</span><div><strong>PayPal</strong><small>Pay securely in US dollars with your PayPal account</small></div><span class="payment-active"><i /> {{ book?.paymentProviders?.paypal?.enabled ? 'Available' : 'Unavailable' }}</span>
+              </button>
             </div>
             <form @submit.prevent="beginCheckout">
               <label><span>Your name</span><input v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
@@ -97,7 +128,7 @@ onMounted(loadBook)
               <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutButtonLabel }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
             </form>
             <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
-            <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by Paystack. Your payment details never pass through our website.</span></div>
+            <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by {{ paymentProvider === 'paypal' ? 'PayPal' : 'Paystack' }}. Your payment details never pass through our website.</span></div>
           </div>
         </div>
       </div>
@@ -124,7 +155,7 @@ onMounted(loadBook)
     <section class="section author-book-section"><div class="container author-book-grid"><div class="author-book-photo" data-reveal><img :src="ceoImage" alt="Princess Oluwatoyin Emmanuel" loading="lazy" /></div><div data-reveal><p class="eyebrow">Meet the author</p><h2>Princess Oluwatoyin Emmanuel</h2><p>Princess is the Founder and Creative Director of Edyn Digital Hub, a multidisciplinary digital professional, educational product developer, and author committed to creating resources that inform, empower, and inspire meaningful growth.</p><blockquote>“The journey to a healthier you begins with understanding, intentional choices, and the courage to keep growing.”</blockquote><RouterLink to="/about" class="text-link">Meet the Founder <ArrowRight :size="17" /></RouterLink></div></div></section>
 
     <section class="section purchase-final-section"><div class="container purchase-final-card" data-reveal><div><p class="eyebrow light">Begin your journey</p><h2>Your healthier chapter can start today.</h2><p>Get your copy of <em>The Healthy You</em> through our secure checkout.</p></div><a href="#buy-book" class="button button-yellow">Get The Healthy You <ArrowRight :size="18" /></a></div></section>
-    <a href="#buy-book" class="mobile-buy-bar"><BookOpen :size="17" /><span>Get the book</span><strong>{{ formattedPrice }}</strong></a>
+    <a href="#buy-book" class="mobile-buy-bar"><BookOpen :size="17" /><span>Get the book</span><strong>{{ checkoutPrice }}</strong></a>
   </div>
 </template>
 
@@ -144,6 +175,7 @@ onMounted(loadBook)
 .book-checkout-card { background:var(--card); border:1px solid var(--border); border-radius:20px; box-shadow:0 20px 55px rgba(15,50,22,.1); max-width:670px; padding:25px; }
 .checkout-heading { align-items:center; border-bottom:1px solid var(--border); color:var(--green); display:flex; justify-content:space-between; margin-bottom:18px; padding-bottom:16px; }.checkout-heading span,.checkout-heading strong { display:block; }.checkout-heading span { color:var(--muted); font-size:.66rem; font-weight:700; margin-bottom:3px; text-transform:uppercase; }.checkout-heading strong { color:var(--text); font:800 1.55rem 'Manrope'; }.checkout-heading .price-loading { color:var(--muted); font-size:1rem; }
 .payment-method { align-items:center;background:color-mix(in srgb,var(--green) 7%,var(--card));border:1px solid color-mix(in srgb,var(--green) 28%,var(--border));border-radius:11px;display:grid;gap:10px;grid-template-columns:auto 1fr auto;margin-bottom:17px;padding:12px; }.payment-method-mark { align-items:center;background:var(--green);border-radius:8px;color:white;display:flex;font:800 .9rem 'Manrope';height:34px;justify-content:center;width:34px; }.payment-method strong,.payment-method small{display:block}.payment-method strong{font-size:.72rem}.payment-method small{color:var(--muted);font-size:.58rem;margin-top:3px}.payment-active{align-items:center;background:color-mix(in srgb,var(--fresh-green) 13%,var(--card));border-radius:999px;color:var(--green);display:flex;font-size:.58rem;font-weight:800;gap:5px;padding:6px 8px}.payment-active i{background:var(--fresh-green);border-radius:50%;height:6px;width:6px}
+.payment-options{display:grid;gap:8px;margin-bottom:17px}.payment-options .payment-method{color:var(--text);cursor:pointer;margin-bottom:0;text-align:left;width:100%}.payment-options .payment-method.selected{border-color:var(--green);box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 13%,transparent)}.payment-options .payment-method:disabled{cursor:not-allowed;opacity:.48}.payment-method.paypal .payment-method-mark{background:#0070ba;font-size:.66rem}.payment-method.paypal.selected{border-color:#0070ba}
 .book-checkout-card form { display:grid; gap:12px; grid-template-columns:repeat(2,1fr); }.book-checkout-card label>span { display:block; font-size:.66rem; font-weight:700; margin:0 0 6px 2px; }.book-checkout-card input { background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); min-height:47px; outline:0; padding:0 13px; width:100%; }.book-checkout-card input:focus { border-color:var(--fresh-green); box-shadow:0 0 0 3px rgba(63,174,42,.1); }
 .checkout-button { align-items:center; background:linear-gradient(135deg,var(--green),var(--green-dark)); border:0; border-radius:10px; color:white; cursor:pointer; display:flex; font-size:.76rem; font-weight:800; gap:8px; grid-column:1/-1; justify-content:center; min-height:50px; margin-top:2px; }.checkout-button:disabled { cursor:not-allowed; opacity:.58; }.checkout-spinner { animation:checkout-spin .8s linear infinite; }
 .checkout-error { background:#fff0f0; border-radius:8px; color:#b42318; font-size:.7rem; margin:12px 0 0; padding:9px 11px; }.checkout-assurance { align-items:flex-start; color:var(--muted); display:flex; font-size:.62rem; gap:7px; line-height:1.5; margin-top:13px; }.checkout-assurance svg { color:var(--green); flex-shrink:0; }

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { ensureAdminAuthenticated } from '../composables/useAdminAuth'
+import { trackMetaPageView } from '../services/metaPixel'
 
 const AboutView = () => import('../views/AboutView.vue')
 const ServicesView = () => import('../views/ServicesView.vue')
@@ -80,6 +81,7 @@ router.beforeEach(async (to) => {
 router.afterEach((to) => {
   document.title = `${to.meta.title || 'Your Digital Partner'} | Edyn Digital Hub`
   if (!to.path.startsWith('/admin')) {
+    trackMetaPageView()
     const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
     let sessionId = sessionStorage.getItem('edyn-visitor-session')
     if (!sessionId) {
