@@ -12,7 +12,6 @@ const loadingBook = ref(true)
 const checkoutLoading = ref(false)
 const checkoutError = ref('')
 const book = ref(null)
-const paymentProvider = ref('paystack')
 const buyer = reactive({ customerName: '', customerEmail: '' })
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
@@ -26,10 +25,10 @@ const formattedPrice = computed(() => {
     maximumFractionDigits: 0,
   }).format(book.value.priceMinor / 100)
 })
-const selectedPayment = computed(() => book.value?.paymentProviders?.[paymentProvider.value] || null)
+const selectedPayment = computed(() => book.value?.paymentProviders?.paystack || null)
 const checkoutPrice = computed(() => {
   const payment = selectedPayment.value
-  if (!payment?.priceMinor) return paymentProvider.value === 'paypal' ? 'USD price unavailable' : formattedPrice.value
+  if (!payment?.priceMinor) return formattedPrice.value
   return new Intl.NumberFormat(payment.currency === 'USD' ? 'en-US' : 'en-NG', { style: 'currency', currency: payment.currency, maximumFractionDigits: payment.currency === 'USD' ? 2 : 0 }).format(payment.priceMinor / 100)
 })
 const canPurchase = computed(() => Boolean(book.value?.canPurchase && selectedPayment.value?.enabled))
@@ -38,8 +37,8 @@ const checkoutButtonLabel = computed(() => {
   if (!selectedPayment.value?.priceMinor) return 'Set the selected payment price in admin'
   if (!book.value?.downloadsEnabled) return 'Ebook delivery is not ready'
   if (!book.value?.purchasesEnabled) return 'Enable purchases in admin'
-  if (!selectedPayment.value?.enabled) return `${paymentProvider.value === 'paypal' ? 'PayPal' : 'Paystack'} is not available`
-  return `Buy with ${paymentProvider.value === 'paypal' ? 'PayPal' : 'Paystack'} — ${checkoutPrice.value}`
+  if (!selectedPayment.value?.enabled) return 'Paystack is not available'
+  return `Buy securely with Paystack — ${checkoutPrice.value}`
 })
 
 async function loadBook() {
@@ -48,10 +47,7 @@ async function loadBook() {
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'Unable to load purchasing details.')
     book.value = payload.data
-    if (!payload.data.paymentProviders?.paystack?.enabled && payload.data.paymentProviders?.paypal?.enabled) paymentProvider.value = 'paypal'
-    const viewPayment = payload.data.paymentProviders?.paystack?.enabled
-      ? payload.data.paymentProviders.paystack
-      : payload.data.paymentProviders?.paypal
+    const viewPayment = payload.data.paymentProviders?.paystack
     trackMetaEvent('ViewContent', {
       content_ids: ['the-healthy-you'],
       content_name: payload.data.title || 'The Healthy You',
@@ -81,7 +77,7 @@ async function beginCheckout() {
     const response = await fetch(`${apiUrl}/api/v1/payments/initialize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookSlug: 'the-healthy-you', paymentProvider: paymentProvider.value, ...buyer }),
+      body: JSON.stringify({ bookSlug: 'the-healthy-you', paymentProvider: 'paystack', ...buyer }),
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'Checkout could not be started.')
@@ -114,13 +110,10 @@ onMounted(loadBook)
 
           <div id="buy-book" class="book-checkout-card">
             <div class="checkout-heading"><div><span>Get your copy</span><strong v-if="!loadingBook">{{ checkoutPrice }}</strong><strong v-else class="price-loading">Loading price…</strong></div><CreditCard :size="27" /></div>
-            <div class="payment-options" aria-label="Choose a payment method">
-              <button type="button" class="payment-method" :class="{ selected: paymentProvider === 'paystack' }" :disabled="!book?.paymentProviders?.paystack?.enabled" @click="paymentProvider = 'paystack'">
-                <span class="payment-method-mark">P</span><div><strong>Paystack</strong><small>Pay in naira by card, transfer or supported local methods</small></div><span class="payment-active"><i /> {{ book?.paymentProviders?.paystack?.enabled ? 'Available' : 'Unavailable' }}</span>
-              </button>
-              <button type="button" class="payment-method paypal" :class="{ selected: paymentProvider === 'paypal' }" :disabled="!book?.paymentProviders?.paypal?.enabled" @click="paymentProvider = 'paypal'">
-                <span class="payment-method-mark">PP</span><div><strong>PayPal</strong><small>Pay securely in US dollars with your PayPal account</small></div><span class="payment-active"><i /> {{ book?.paymentProviders?.paypal?.enabled ? 'Available' : 'Unavailable' }}</span>
-              </button>
+            <div class="payment-options" aria-label="Payment method">
+              <div class="payment-method selected">
+                <span class="payment-method-mark">P</span><div><strong>Paystack</strong><small>Pay securely in naira by card, bank transfer or supported local methods</small></div><span class="payment-active"><i /> Secure checkout</span>
+              </div>
             </div>
             <form @submit.prevent="beginCheckout">
               <label><span>Your name</span><input v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
@@ -128,7 +121,7 @@ onMounted(loadBook)
               <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutButtonLabel }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
             </form>
             <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
-            <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by {{ paymentProvider === 'paypal' ? 'PayPal' : 'Paystack' }}. Your payment details never pass through our website.</span></div>
+            <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by Paystack. Your payment details never pass through our website.</span></div>
           </div>
         </div>
       </div>
