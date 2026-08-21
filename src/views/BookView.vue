@@ -25,7 +25,17 @@ const formattedPrice = computed(() => {
     maximumFractionDigits: 0,
   }).format(book.value.priceMinor / 100)
 })
-const selectedPayment = computed(() => book.value?.paymentProviders?.paystack || null)
+const selectedPayment = computed(() => {
+  if (!book.value) return null
+  const paystack = book.value.paymentProviders?.paystack || {}
+  const priceMinor = paystack.priceMinor ?? book.value.priceMinor
+  return {
+    ...paystack,
+    enabled: Boolean(priceMinor && book.value.canPurchase),
+    priceMinor,
+    currency: paystack.currency || book.value.currency || 'NGN',
+  }
+})
 const checkoutPrice = computed(() => {
   const payment = selectedPayment.value
   if (!payment?.priceMinor) return formattedPrice.value
