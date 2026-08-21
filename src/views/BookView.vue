@@ -140,7 +140,7 @@ onMounted(loadBook)
               <button type="button" class="payment-method" :class="{ selected: paymentProvider === 'paystack' }" :disabled="!book?.priceMinor" @click="paymentProvider = 'paystack'">
                 <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>For Nigerian payments</strong><small>Paystack · Card, bank transfer and supported local methods</small></div><span class="payment-active"><i /> {{ providerPrice('paystack') }} NGN</span>
               </button>
-              <button type="button" class="payment-method paypal" :class="{ selected: paymentProvider === 'paypal' }" :disabled="!book?.paymentProviders?.paypal?.enabled" @click="paymentProvider = 'paypal'">
+              <button v-if="book?.paymentProviders?.paypal?.enabled" type="button" class="payment-method paypal" :class="{ selected: paymentProvider === 'paypal' }" @click="paymentProvider = 'paypal'">
                 <span class="payment-method-mark paypal-mark" aria-hidden="true"><span>Pay</span><b>Pal</b></span><div><strong>For international payments</strong><small>PayPal · Pay securely in US dollars</small></div><span class="payment-active"><i /> {{ providerPrice('paypal') }} USD</span>
               </button>
             </div>
@@ -156,7 +156,7 @@ onMounted(loadBook)
                 <span class="card-brand mastercard" aria-label="Mastercard"><i /><b /></span>
                 <span class="card-brand verve" aria-label="Verve">Verve</span>
                 <span class="card-brand transfer" aria-label="Bank transfer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18L12 3 3 9Zm2 2v7m4-7v7m6-7v7m4-7v7M3 21h18"/></svg><small>Transfer</small></span>
-                <span class="card-brand paypal-wordmark" aria-label="PayPal"><i>Pay</i><b>Pal</b></span>
+                <span v-if="book?.paymentProviders?.paypal?.enabled" class="card-brand paypal-wordmark" aria-label="PayPal"><i>Pay</i><b>Pal</b></span>
               </div>
             </div>
             <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
