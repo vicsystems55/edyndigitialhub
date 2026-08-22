@@ -74,11 +74,12 @@ async function loadBook() {
     if (!response.ok) throw new Error(payload.error?.message || 'Unable to load purchasing details.')
     book.value = payload.data
     const viewPayment = payload.data.paymentProviders?.paystack
+    const viewPriceMinor = viewPayment?.priceMinor ?? payload.data.priceMinor
     trackMetaEvent('ViewContent', {
       content_ids: ['the-healthy-you'],
       content_name: payload.data.title || 'The Healthy You',
       content_type: 'product',
-      value: viewPayment?.priceMinor ? viewPayment.priceMinor / 100 : undefined,
+      value: viewPriceMinor ? viewPriceMinor / 100 : undefined,
       currency: viewPayment?.currency || 'NGN',
     })
   } catch (error) {
@@ -91,14 +92,6 @@ async function loadBook() {
 async function beginCheckout() {
   checkoutError.value = ''
   checkoutLoading.value = true
-  trackMetaEvent('InitiateCheckout', {
-    content_ids: ['the-healthy-you'],
-    content_name: book.value?.title || 'The Healthy You',
-    content_type: 'product',
-    value: selectedPayment.value?.priceMinor ? selectedPayment.value.priceMinor / 100 : undefined,
-    currency: selectedPayment.value?.currency || 'NGN',
-    num_items: 1,
-  })
   try {
     const response = await fetch(`${apiUrl}/api/v1/payments/initialize`, {
       method: 'POST',
@@ -107,6 +100,16 @@ async function beginCheckout() {
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'Checkout could not be started.')
+    if (!payload.data?.authorizationUrl) throw new Error('The payment provider did not return a checkout link.')
+    trackMetaEvent('InitiateCheckout', {
+      content_ids: ['the-healthy-you'],
+      content_name: book.value?.title || 'The Healthy You',
+      content_type: 'product',
+      value: selectedPayment.value?.priceMinor ? selectedPayment.value.priceMinor / 100 : undefined,
+      currency: selectedPayment.value?.currency || 'NGN',
+      num_items: 1,
+    })
+    await new Promise((resolve) => window.setTimeout(resolve, 150))
     window.location.assign(payload.data.authorizationUrl)
   } catch (error) {
     checkoutError.value = error.message || 'Checkout could not be started. Please try again.'
