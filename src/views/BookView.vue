@@ -179,7 +179,6 @@ onBeforeUnmount(() => {
           <div class="book-available-badge"><span /> Now available</div>
           <h1>Get your copy of <em>The Healthy You</em> today.</h1>
           <p class="book-sales-subtitle">Simple, realistic guidance for healthier habits, greater confidence, and lasting progress.</p>
-          <ul class="hero-book-benefits"><li><CheckCircle2 /> Simple steps you can use every day</li><li><CheckCircle2 /> Sustainable habits—not quick fixes</li><li><CheckCircle2 /> Instant ebook access after payment</li></ul>
 
           <div id="buy-book" class="purchase-entry-card">
             <div class="purchase-entry-copy"><span>Instant digital download</span><strong v-if="loadingBook" class="price-loading">Loading price…</strong><strong v-else-if="book?.priceMinor">{{ formattedPrice }}</strong><strong v-else class="price-error">Price unavailable</strong><small v-if="book?.paymentProviders?.paypal?.enabled">International option: {{ providerPrice('paypal') }} USD</small></div>
@@ -187,6 +186,7 @@ onBeforeUnmount(() => {
             <button class="purchase-entry-button" type="button" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout"><BookOpen :size="19" /> Buy &amp; Download Now <ArrowRight :size="19" /></button>
             <div class="purchase-entry-trust"><ShieldCheck :size="15" /><span>Secure payment · Instant access after confirmation</span></div>
           </div>
+          <ul class="hero-book-benefits"><li><CheckCircle2 /> Simple steps you can use every day</li><li><CheckCircle2 /> Sustainable habits—not quick fixes</li><li><CheckCircle2 /> Instant ebook access after payment</li></ul>
         </div>
       </div>
     </section>
@@ -283,7 +283,7 @@ onBeforeUnmount(() => {
 @keyframes checkout-spin { to { transform:rotate(360deg); } }
 @keyframes checkout-modal-in{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes reviews-scroll { to { transform:translateX(-50%); } }
-@media(max-width:900px){.book-sales-grid,.book-inside-grid{gap:55px;grid-template-columns:1fr}.book-sales-visual{margin:auto;max-width:520px;width:100%}.book-sales-copy{text-align:left}.reader-cards{grid-template-columns:1fr}.purchase-final-card{align-items:flex-start;flex-direction:column;gap:25px;padding:42px 35px}.book-sales-copy h1{font-size:clamp(3rem,11vw,5rem)}}
+@media(max-width:900px){.book-sales-grid,.book-inside-grid{gap:55px;grid-template-columns:1fr}.book-sales-copy{order:1;text-align:left}.book-sales-visual{margin:auto;max-width:520px;order:2;width:100%}.reader-cards{grid-template-columns:1fr}.purchase-final-card{align-items:flex-start;flex-direction:column;gap:25px;padding:42px 35px}.book-sales-copy h1{font-size:clamp(3rem,11vw,5rem)}}
 @media(max-width:620px){.book-sales-hero{padding:118px 0 65px}.sales-cover-orbit{height:300px;width:300px}.sales-cover-wrap :deep(.book-cover){max-width:250px}.purchase-entry-card{padding:19px}.checkout-modal-backdrop{align-items:flex-end;padding:0}.checkout-modal{border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;padding:23px 19px}.checkout-modal form{grid-template-columns:1fr}.checkout-modal form>*{grid-column:1}.book-inside-grid{gap:38px}.reader-cards article,.book-learning-list{padding:25px}.purchase-final-card{padding:36px 24px}.purchase-final-card .button{width:100%}.purchase-final-section{padding-bottom:105px}.mobile-buy-bar{align-items:center;background:var(--yellow);border:0;bottom:12px;border-radius:999px;box-shadow:0 12px 35px rgba(0,0,0,.22);color:var(--deep-green);cursor:pointer;display:flex;font-size:.72rem;font-weight:800;gap:8px;justify-content:center;left:16px;min-height:53px;padding:0 18px;position:fixed;right:16px;z-index:45}.mobile-buy-bar strong{margin-left:auto}.sales-trust-row{justify-content:flex-start}}
 @media(max-width:460px){.payment-method{grid-template-columns:auto 1fr}.payment-active{grid-column:2;justify-self:start}.accepted-payments{align-items:flex-start;flex-direction:column}.payment-brand-row{justify-content:flex-start}}
 @media(prefers-reduced-motion:reduce){.reviews-marquee{mask-image:none;overflow-x:auto;padding:0 14px}.reviews-marquee-track{animation:none}.reviews-marquee-group:nth-child(2){display:none}.checkout-modal{animation:none}}
