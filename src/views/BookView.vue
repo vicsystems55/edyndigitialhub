@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import { ArrowLeft, ArrowRight, BadgeCheck, BookOpen, CheckCircle2, CreditCard, HeartPulse, Lightbulb, LoaderCircle, LockKeyhole, Quote, ShieldCheck, Sparkles, Star, Target } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { ArrowLeft, ArrowRight, BadgeCheck, BookOpen, CheckCircle2, CreditCard, HeartPulse, Lightbulb, LoaderCircle, LockKeyhole, Quote, ShieldCheck, Sparkles, Star, Target, X } from '@lucide/vue'
 import BookCover from '../components/common/BookCover.vue'
 import { usePageAnimations } from '../composables/usePageAnimations'
 import ceoImage from '../assets/images/ceo.png'
@@ -9,8 +9,11 @@ import { trackMetaEvent } from '../services/metaPixel'
 
 const root = ref(null)
 const loadingBook = ref(true)
+const bookLoadError = ref('')
 const checkoutLoading = ref(false)
 const checkoutError = ref('')
+const checkoutOpen = ref(false)
+const nameInput = ref(null)
 const book = ref(null)
 const paymentProvider = ref('paystack')
 const buyer = reactive({ customerName: '', customerEmail: '' })
@@ -19,7 +22,7 @@ const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 usePageAnimations(root)
 
 const formattedPrice = computed(() => {
-  if (!book.value?.priceMinor) return 'Price being updated'
+  if (!book.value?.priceMinor) return 'Price unavailable'
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: book.value.currency || 'NGN',
@@ -67,26 +70,59 @@ const checkoutButtonLabel = computed(() => {
   return `Buy securely with ${paymentProvider.value === 'paypal' ? 'PayPal' : 'Paystack'} — ${checkoutPrice.value}`
 })
 
+function openCheckout() {
+  checkoutError.value = ''
+  checkoutOpen.value = true
+  trackMetaEvent('AddToCart', {
+    content_ids: ['the-healthy-you'],
+    content_name: book.value?.title || 'The Healthy You',
+    content_type: 'product',
+    value: selectedPayment.value?.priceMinor ? selectedPayment.value.priceMinor / 100 : undefined,
+    currency: selectedPayment.value?.currency || 'NGN',
+  })
+  nextTick(() => nameInput.value?.focus())
+}
+
+function closeCheckout() {
+  if (!checkoutLoading.value) checkoutOpen.value = false
+}
+
+function handleCheckoutKeydown(event) {
+  if (event.key === 'Escape' && checkoutOpen.value) closeCheckout()
+}
+
 async function loadBook() {
-  try {
-    const response = await fetch(`${apiUrl}/api/v1/publications/the-healthy-you`)
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(payload.error?.message || 'Unable to load purchasing details.')
-    book.value = payload.data
-    const viewPayment = payload.data.paymentProviders?.paystack
-    const viewPriceMinor = viewPayment?.priceMinor ?? payload.data.priceMinor
-    trackMetaEvent('ViewContent', {
-      content_ids: ['the-healthy-you'],
-      content_name: payload.data.title || 'The Healthy You',
-      content_type: 'product',
-      value: viewPriceMinor ? viewPriceMinor / 100 : undefined,
-      currency: viewPayment?.currency || 'NGN',
-    })
-  } catch (error) {
-    checkoutError.value = error.message || 'Unable to reach the store. Please try again shortly.'
-  } finally {
-    loadingBook.value = false
+  loadingBook.value = true
+  bookLoadError.value = ''
+  let lastError
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/publications/the-healthy-you`, { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error?.message || 'Unable to load purchasing details.')
+      if (!payload.data?.priceMinor) throw new Error('The current book price was not returned.')
+      book.value = payload.data
+      const viewPayment = payload.data.paymentProviders?.paystack
+      const viewPriceMinor = viewPayment?.priceMinor ?? payload.data.priceMinor
+      trackMetaEvent('ViewContent', {
+        content_ids: ['the-healthy-you'],
+        content_name: payload.data.title || 'The Healthy You',
+        content_type: 'product',
+        value: viewPriceMinor / 100,
+        currency: viewPayment?.currency || payload.data.currency || 'NGN',
+      })
+      loadingBook.value = false
+      return
+    } catch (error) {
+      lastError = error
+      if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 1200 * (attempt + 1)))
+    }
   }
+
+  book.value = null
+  bookLoadError.value = lastError?.message || 'Unable to reach the store. Please try again.'
+  loadingBook.value = false
 }
 
 async function beginCheckout() {
@@ -117,7 +153,15 @@ async function beginCheckout() {
   }
 }
 
-onMounted(loadBook)
+watch(checkoutOpen, (open) => document.body.classList.toggle('checkout-modal-open', open))
+onMounted(() => {
+  loadBook()
+  window.addEventListener('keydown', handleCheckoutKeydown)
+})
+onBeforeUnmount(() => {
+  document.body.classList.remove('checkout-modal-open')
+  window.removeEventListener('keydown', handleCheckoutKeydown)
+})
 </script>
 
 <template>
@@ -137,33 +181,11 @@ onMounted(loadBook)
           <p class="book-sales-subtitle">Simple, realistic guidance for healthier habits, greater confidence, and lasting progress.</p>
           <ul class="hero-book-benefits"><li><CheckCircle2 /> Simple steps you can use every day</li><li><CheckCircle2 /> Sustainable habits—not quick fixes</li><li><CheckCircle2 /> Instant ebook access after payment</li></ul>
 
-          <div id="buy-book" class="book-checkout-card">
-            <div class="checkout-heading"><div><span>Get your copy now</span><strong v-if="!loadingBook">{{ checkoutPrice }}</strong><strong v-else class="price-loading">Loading price…</strong></div><CreditCard :size="27" /></div>
-            <div class="payment-options" aria-label="Choose a payment method">
-              <button type="button" class="payment-method" :class="{ selected: paymentProvider === 'paystack' }" :disabled="!book?.priceMinor" @click="paymentProvider = 'paystack'">
-                <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>For Nigerian payments</strong><small>Paystack · Card, bank transfer and supported local methods</small></div><span class="payment-active"><i /> {{ providerPrice('paystack') }} NGN</span>
-              </button>
-              <button v-if="book?.paymentProviders?.paypal?.enabled" type="button" class="payment-method paypal" :class="{ selected: paymentProvider === 'paypal' }" @click="paymentProvider = 'paypal'">
-                <span class="payment-method-mark paypal-mark" aria-hidden="true"><span>Pay</span><b>Pal</b></span><div><strong>For international payments</strong><small>PayPal · Pay securely in US dollars</small></div><span class="payment-active"><i /> {{ providerPrice('paypal') }} USD</span>
-              </button>
-            </div>
-            <form @submit.prevent="beginCheckout">
-              <label><span>Your name</span><input v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
-              <label><span>Email address</span><input v-model.trim="buyer.customerEmail" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
-              <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutButtonLabel }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
-            </form>
-            <div class="accepted-payments" aria-label="Accepted secure payment methods">
-              <span>Secure payments accepted</span>
-              <div class="payment-brand-row">
-                <span class="card-brand visa" aria-label="Visa">VISA</span>
-                <span class="card-brand mastercard" aria-label="Mastercard"><i /><b /></span>
-                <span class="card-brand verve" aria-label="Verve">Verve</span>
-                <span class="card-brand transfer" aria-label="Bank transfer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18L12 3 3 9Zm2 2v7m4-7v7m6-7v7m4-7v7M3 21h18"/></svg><small>Transfer</small></span>
-                <span v-if="book?.paymentProviders?.paypal?.enabled" class="card-brand paypal-wordmark" aria-label="PayPal"><i>Pay</i><b>Pal</b></span>
-              </div>
-            </div>
-            <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
-            <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by {{ paymentProvider === 'paypal' ? 'PayPal' : 'Paystack' }}. Your payment details never pass through our website.</span></div>
+          <div id="buy-book" class="purchase-entry-card">
+            <div class="purchase-entry-copy"><span>Instant digital download</span><strong v-if="loadingBook" class="price-loading">Loading price…</strong><strong v-else-if="book?.priceMinor">{{ formattedPrice }}</strong><strong v-else class="price-error">Price unavailable</strong><small v-if="book?.paymentProviders?.paypal?.enabled">International option: {{ providerPrice('paypal') }} USD</small></div>
+            <div v-if="bookLoadError" class="purchase-load-error"><span>{{ bookLoadError }}</span><button type="button" @click="loadBook">Retry</button></div>
+            <button class="purchase-entry-button" type="button" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout"><BookOpen :size="19" /> Buy &amp; Download Now <ArrowRight :size="19" /></button>
+            <div class="purchase-entry-trust"><ShieldCheck :size="15" /><span>Secure payment · Instant access after confirmation</span></div>
           </div>
         </div>
       </div>
@@ -189,8 +211,43 @@ onMounted(loadBook)
 
     <section class="section author-book-section"><div class="container author-book-grid"><div class="author-book-photo" data-reveal><img :src="ceoImage" alt="Princess Oluwatoyin Emmanuel" loading="lazy" /></div><div data-reveal><p class="eyebrow">Meet the author</p><h2>Princess Oluwatoyin Emmanuel</h2><p>Princess is the Founder and Creative Director of Edyn Digital Hub, a multidisciplinary digital professional, educational product developer, and author committed to creating resources that inform, empower, and inspire meaningful growth.</p><blockquote>“The journey to a healthier you begins with understanding, intentional choices, and the courage to keep growing.”</blockquote><RouterLink to="/about" class="text-link">Meet the Founder <ArrowRight :size="17" /></RouterLink></div></div></section>
 
-    <section class="section purchase-final-section"><div class="container purchase-final-card" data-reveal><div><p class="eyebrow light">Begin your journey</p><h2>Your healthier chapter can start today.</h2><p>Get your copy of <em>The Healthy You</em> through our secure checkout.</p></div><a href="#buy-book" class="button button-yellow">Get The Healthy You <ArrowRight :size="18" /></a></div></section>
-    <a href="#buy-book" class="mobile-buy-bar"><BookOpen :size="17" /><span>Get the book</span><strong>{{ checkoutPrice }}</strong></a>
+    <section class="section purchase-final-section"><div class="container purchase-final-card" data-reveal><div><p class="eyebrow light">Begin your journey</p><h2>Your healthier chapter can start today.</h2><p>Get your copy of <em>The Healthy You</em> through our secure checkout.</p></div><button type="button" class="button button-yellow" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout">Buy &amp; Download Now <ArrowRight :size="18" /></button></div></section>
+    <button type="button" class="mobile-buy-bar" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout"><BookOpen :size="17" /><span>Buy &amp; download</span><strong>{{ loadingBook ? 'Loading…' : formattedPrice }}</strong></button>
+
+    <Teleport to="body">
+      <div v-if="checkoutOpen" class="checkout-modal-backdrop" @click.self="closeCheckout">
+        <section class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-modal-title">
+          <button class="checkout-modal-close" type="button" aria-label="Close checkout" :disabled="checkoutLoading" @click="closeCheckout"><X :size="21" /></button>
+          <div class="checkout-heading"><div><span>Complete your order</span><strong id="checkout-modal-title">Buy The Healthy You</strong><small>{{ checkoutPrice }} · Instant ebook access</small></div><CreditCard :size="27" /></div>
+          <div class="payment-options" aria-label="Choose a payment method">
+            <button type="button" class="payment-method" :class="{ selected: paymentProvider === 'paystack' }" :disabled="!book?.priceMinor" @click="paymentProvider = 'paystack'">
+              <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>For Nigerian payments</strong><small>Paystack · Card, bank transfer and supported local methods</small></div><span class="payment-active"><i /> {{ providerPrice('paystack') }} NGN</span>
+            </button>
+            <button v-if="book?.paymentProviders?.paypal?.enabled" type="button" class="payment-method paypal" :class="{ selected: paymentProvider === 'paypal' }" @click="paymentProvider = 'paypal'">
+              <span class="payment-method-mark paypal-mark" aria-hidden="true"><span>Pay</span><b>Pal</b></span><div><strong>For international payments</strong><small>PayPal · Pay securely in US dollars</small></div><span class="payment-active"><i /> {{ providerPrice('paypal') }} USD</span>
+            </button>
+          </div>
+          <form @submit.prevent="beginCheckout">
+            <label><span>Your name</span><input ref="nameInput" v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
+            <label><span>Email for your download</span><input v-model.trim="buyer.customerEmail" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
+            <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutButtonLabel }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
+          </form>
+          <p class="checkout-email-note">Your email is needed only to send your receipt and secure ebook access.</p>
+          <div class="accepted-payments" aria-label="Accepted secure payment methods">
+            <span>Secure payments accepted</span>
+            <div class="payment-brand-row">
+              <span class="card-brand visa" aria-label="Visa">VISA</span>
+              <span class="card-brand mastercard" aria-label="Mastercard"><i /><b /></span>
+              <span class="card-brand verve" aria-label="Verve">Verve</span>
+              <span class="card-brand transfer" aria-label="Bank transfer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18L12 3 3 9Zm2 2v7m4-7v7m6-7v7m4-7v7M3 21h18"/></svg><small>Transfer</small></span>
+              <span v-if="book?.paymentProviders?.paypal?.enabled" class="card-brand paypal-wordmark" aria-label="PayPal"><i>Pay</i><b>Pal</b></span>
+            </div>
+          </div>
+          <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
+          <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by {{ paymentProvider === 'paypal' ? 'PayPal' : 'Paystack' }}. Your payment details never pass through our website.</span></div>
+        </section>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -207,12 +264,12 @@ onMounted(loadBook)
 .book-sales-copy h1 { font:800 clamp(3rem,5.4vw,5.25rem)/.98 'Manrope'; letter-spacing:-.065em; margin:15px 0 21px; max-width:760px; }.book-sales-copy h1 em { color:var(--green); font-style:normal; }
 .book-sales-subtitle { color:var(--muted); font-size:.98rem; line-height:1.75; max-width:690px; }
 .hero-book-benefits { display:grid; gap:9px; list-style:none; margin:23px 0 28px; padding:0; }.hero-book-benefits li { align-items:center; color:var(--text-soft); display:flex; font-size:.79rem; gap:9px; }.hero-book-benefits svg { color:var(--fresh-green); flex-shrink:0; height:18px; }
-.book-checkout-card { background:var(--card); border:1px solid var(--border); border-radius:20px; box-shadow:0 20px 55px rgba(15,50,22,.1); max-width:670px; padding:25px; }
+.purchase-entry-card{background:var(--card);border:1px solid var(--border);border-radius:20px;box-shadow:0 20px 55px rgba(15,50,22,.1);display:grid;gap:15px;max-width:670px;padding:24px}.purchase-entry-copy{align-items:baseline;display:grid;grid-template-columns:1fr auto}.purchase-entry-copy>span{color:var(--green);font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.purchase-entry-copy>strong{font:800 1.65rem 'Manrope'}.purchase-entry-copy>strong.price-loading{color:var(--muted);font-size:1rem}.purchase-entry-copy>strong.price-error{color:#b42318;font-size:1rem}.purchase-entry-copy>small{color:var(--muted);font-size:.6rem;grid-column:1/-1;margin-top:4px}.purchase-load-error{align-items:center;background:#fff0f0;border-radius:9px;color:#b42318;display:flex;font-size:.62rem;gap:10px;justify-content:space-between;padding:9px 11px}.purchase-load-error button{background:transparent;border:0;color:inherit;cursor:pointer;font:inherit;font-weight:800;text-decoration:underline}.purchase-entry-button{align-items:center;background:linear-gradient(135deg,var(--green),var(--green-dark));border:0;border-radius:11px;color:#fff;cursor:pointer;display:flex;font-size:.82rem;font-weight:800;gap:9px;justify-content:center;min-height:55px;padding:0 20px;width:100%}.purchase-entry-button svg:last-child{margin-left:4px}.purchase-entry-button:disabled{cursor:not-allowed;opacity:.58}.purchase-entry-trust{align-items:center;color:var(--muted);display:flex;font-size:.62rem;gap:6px;justify-content:center}.purchase-entry-trust svg{color:var(--green)}
 .checkout-heading { align-items:center; border-bottom:1px solid var(--border); color:var(--green); display:flex; justify-content:space-between; margin-bottom:18px; padding-bottom:16px; }.checkout-heading span,.checkout-heading strong { display:block; }.checkout-heading span { color:var(--muted); font-size:.66rem; font-weight:700; margin-bottom:3px; text-transform:uppercase; }.checkout-heading strong { color:var(--text); font:800 1.55rem 'Manrope'; }.checkout-heading .price-loading { color:var(--muted); font-size:1rem; }
 .payment-method { align-items:center;background:color-mix(in srgb,var(--green) 7%,var(--card));border:1px solid color-mix(in srgb,var(--green) 28%,var(--border));border-radius:11px;display:grid;gap:10px;grid-template-columns:auto 1fr auto;margin-bottom:17px;padding:12px; }.payment-method-mark { align-items:center;background:var(--green);border-radius:8px;color:white;display:flex;font:800 .9rem 'Manrope';height:34px;justify-content:center;width:34px; }.payment-method strong,.payment-method small{display:block}.payment-method strong{font-size:.72rem}.payment-method small{color:var(--muted);font-size:.58rem;margin-top:3px}.payment-active{align-items:center;background:color-mix(in srgb,var(--fresh-green) 13%,var(--card));border-radius:999px;color:var(--green);display:flex;font-size:.58rem;font-weight:800;gap:5px;padding:6px 8px}.payment-active i{background:var(--fresh-green);border-radius:50%;height:6px;width:6px}
 .payment-options{display:grid;gap:8px;margin-bottom:17px}.payment-options .payment-method{color:var(--text);cursor:pointer;margin-bottom:0;text-align:left;width:100%}.payment-options .payment-method.selected{border-color:var(--green);box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 13%,transparent)}.payment-options .payment-method:disabled{cursor:not-allowed;opacity:.48}.payment-method.paypal .payment-method-mark{background:#0070ba;font-size:.66rem}.payment-method.paypal.selected{border-color:#0070ba}
 .payment-method-mark.paystack-mark{background:#fff;border:1px solid #dce8eb}.paystack-mark svg{height:27px;width:27px}.paystack-mark rect{fill:#08a5db}.payment-method.paypal .payment-method-mark.paypal-mark{background:#fff;border:1px solid #dce3eb;color:#003087;font-size:.54rem;font-style:italic;letter-spacing:-.05em;width:45px}.paypal-mark b{color:#009cde}.paypal-mark span,.paypal-mark b{font-weight:900}
-.book-checkout-card form { display:grid; gap:12px; grid-template-columns:repeat(2,1fr); }.book-checkout-card label>span { display:block; font-size:.66rem; font-weight:700; margin:0 0 6px 2px; }.book-checkout-card input { background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); min-height:47px; outline:0; padding:0 13px; width:100%; }.book-checkout-card input:focus { border-color:var(--fresh-green); box-shadow:0 0 0 3px rgba(63,174,42,.1); }
+.checkout-modal-backdrop{align-items:center;background:rgba(3,24,10,.72);display:flex;inset:0;justify-content:center;overflow-y:auto;padding:24px;position:fixed;z-index:100}.checkout-modal{animation:checkout-modal-in .22s ease-out;background:var(--card);border:1px solid var(--border);border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.3);max-width:680px;padding:28px;position:relative;width:100%}.checkout-modal-close{align-items:center;background:var(--surface-soft);border:1px solid var(--border);border-radius:50%;color:var(--text);cursor:pointer;display:flex;height:36px;justify-content:center;position:absolute;right:18px;top:18px;width:36px;z-index:2}.checkout-modal-close:disabled{cursor:not-allowed;opacity:.45}.checkout-modal .checkout-heading{padding-right:42px}.checkout-modal .checkout-heading small{color:var(--muted);display:block;font-size:.63rem;font-weight:600;margin-top:4px}.checkout-modal form { display:grid; gap:12px; grid-template-columns:repeat(2,1fr); }.checkout-modal label>span { display:block; font-size:.66rem; font-weight:700; margin:0 0 6px 2px; }.checkout-modal input { background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); min-height:47px; outline:0; padding:0 13px; width:100%; }.checkout-modal input:focus { border-color:var(--fresh-green); box-shadow:0 0 0 3px rgba(63,174,42,.1); }.checkout-email-note{color:var(--muted);font-size:.58rem;line-height:1.5;margin:9px 0 0;text-align:center}:global(body.checkout-modal-open){overflow:hidden}
 .checkout-button { align-items:center; background:linear-gradient(135deg,var(--green),var(--green-dark)); border:0; border-radius:10px; color:white; cursor:pointer; display:flex; font-size:.76rem; font-weight:800; gap:8px; grid-column:1/-1; justify-content:center; min-height:50px; margin-top:2px; }.checkout-button:disabled { cursor:not-allowed; opacity:.58; }.checkout-spinner { animation:checkout-spin .8s linear infinite; }
 .accepted-payments{align-items:center;border-top:1px solid var(--border);display:flex;gap:12px;justify-content:space-between;margin-top:14px;padding-top:12px}.accepted-payments>span{color:var(--muted);font-size:.57rem;font-weight:700}.payment-brand-row{align-items:center;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}.card-brand{align-items:center;background:#fff;border:1px solid #e1e5e8;border-radius:5px;box-shadow:0 2px 5px rgba(17,24,39,.04);display:inline-flex;height:25px;justify-content:center;min-width:39px;padding:0 6px}.card-brand.visa{color:#1434cb;font:italic 900 .67rem Arial;letter-spacing:-.05em}.card-brand.mastercard{min-width:40px;position:relative}.card-brand.mastercard i,.card-brand.mastercard b{border-radius:50%;display:block;height:14px;position:absolute;width:14px}.card-brand.mastercard i{background:#eb001b;left:9px}.card-brand.mastercard b{background:#f79e1b;right:9px;opacity:.9}.card-brand.verve{color:#089447;font:800 .62rem Arial}.card-brand.transfer{color:#30404d;gap:3px;min-width:62px}.card-brand.transfer svg{fill:none;height:14px;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8;width:14px}.card-brand.transfer small{font-size:.48rem;font-weight:700}.card-brand.paypal-wordmark{color:#003087;font:italic 900 .56rem Arial;letter-spacing:-.04em}.card-brand.paypal-wordmark i{font-style:inherit}.card-brand.paypal-wordmark b{color:#009cde}
 .checkout-error { background:#fff0f0; border-radius:8px; color:#b42318; font-size:.7rem; margin:12px 0 0; padding:9px 11px; }.checkout-assurance { align-items:flex-start; color:var(--muted); display:flex; font-size:.62rem; gap:7px; line-height:1.5; margin-top:13px; }.checkout-assurance svg { color:var(--green); flex-shrink:0; }
@@ -221,12 +278,13 @@ onMounted(loadBook)
 .book-inside-section { background:var(--surface-soft); }.book-inside-grid { align-items:center; display:grid; gap:95px; grid-template-columns:1fr 1fr; }.book-inside-grid h2 { font:800 clamp(2.2rem,4vw,3.6rem)/1.08 'Manrope'; letter-spacing:-.05em; margin:10px 0 18px; }.book-inside-grid>div:first-child>p:last-of-type { color:var(--muted); line-height:1.8; }.inside-highlight { align-items:center; background:var(--card); border-left:3px solid var(--yellow); border-radius:10px; display:flex; gap:14px; margin-top:25px; padding:17px; }.inside-highlight svg { color:var(--green); flex-shrink:0; }.inside-highlight strong,.inside-highlight span { display:block; }.inside-highlight strong { font-size:.8rem; }.inside-highlight span { color:var(--muted); font-size:.69rem; margin-top:3px; }
 .book-learning-list { background:var(--card); border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow); padding:32px; }.book-learning-list>p { color:var(--green); font-size:.66rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }.book-learning-list ul { list-style:none; margin:20px 0 0; padding:0; }.book-learning-list li { border-top:1px solid var(--border); display:grid; gap:16px; grid-template-columns:auto 1fr; padding:18px 0; }.book-learning-list li>span { color:var(--gold); font:800 1.1rem 'Manrope'; }.book-learning-list strong,.book-learning-list small { display:block; }.book-learning-list strong { font-size:.84rem; }.book-learning-list small { color:var(--muted); line-height:1.55; margin-top:5px; }
 .author-book-section blockquote { border-left:3px solid var(--yellow); color:var(--text-soft); font:600 1rem/1.65 'Manrope'; margin:25px 0; padding:4px 0 4px 18px; }
-.purchase-final-section { background:var(--background); padding-bottom:120px; }.purchase-final-card { align-items:center; background:linear-gradient(135deg,var(--deep-green),var(--green)); border-radius:28px; color:white; display:flex; justify-content:space-between; overflow:hidden; padding:52px 60px; position:relative; }.purchase-final-card::after { background:var(--yellow); border-radius:50%; content:''; height:250px; opacity:.13; position:absolute; right:-80px; top:-120px; width:250px; }.purchase-final-card h2 { font:800 clamp(2rem,4vw,3.4rem)/1.1 'Manrope'; letter-spacing:-.045em; margin:10px 0; }.purchase-final-card p:last-child { color:#d6e5d7; margin:0; }.purchase-final-card .button { flex-shrink:0; position:relative; z-index:2; }
+.purchase-final-section { background:var(--background); padding-bottom:120px; }.purchase-final-card { align-items:center; background:linear-gradient(135deg,var(--deep-green),var(--green)); border-radius:28px; color:white; display:flex; justify-content:space-between; overflow:hidden; padding:52px 60px; position:relative; }.purchase-final-card::after { background:var(--yellow); border-radius:50%; content:''; height:250px; opacity:.13; position:absolute; right:-80px; top:-120px; width:250px; }.purchase-final-card h2 { font:800 clamp(2rem,4vw,3.4rem)/1.1 'Manrope'; letter-spacing:-.045em; margin:10px 0; }.purchase-final-card p:last-child { color:#d6e5d7; margin:0; }.purchase-final-card .button { border:0;cursor:pointer;flex-shrink:0;position:relative;z-index:2; }
 .mobile-buy-bar { display:none; }
 @keyframes checkout-spin { to { transform:rotate(360deg); } }
+@keyframes checkout-modal-in{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes reviews-scroll { to { transform:translateX(-50%); } }
 @media(max-width:900px){.book-sales-grid,.book-inside-grid{gap:55px;grid-template-columns:1fr}.book-sales-visual{margin:auto;max-width:520px;width:100%}.book-sales-copy{text-align:left}.reader-cards{grid-template-columns:1fr}.purchase-final-card{align-items:flex-start;flex-direction:column;gap:25px;padding:42px 35px}.book-sales-copy h1{font-size:clamp(3rem,11vw,5rem)}}
-@media(max-width:620px){.book-sales-hero{padding:118px 0 65px}.sales-cover-orbit{height:300px;width:300px}.sales-cover-wrap :deep(.book-cover){max-width:250px}.book-checkout-card{padding:19px}.book-checkout-card form{grid-template-columns:1fr}.book-checkout-card form>*{grid-column:1}.book-inside-grid{gap:38px}.reader-cards article,.book-learning-list{padding:25px}.purchase-final-card{padding:36px 24px}.purchase-final-card .button{width:100%}.purchase-final-section{padding-bottom:105px}.mobile-buy-bar{align-items:center;background:var(--yellow);bottom:12px;border-radius:999px;box-shadow:0 12px 35px rgba(0,0,0,.22);color:var(--deep-green);display:flex;font-size:.72rem;font-weight:800;gap:8px;justify-content:center;left:16px;min-height:53px;padding:0 18px;position:fixed;right:16px;z-index:45}.mobile-buy-bar strong{margin-left:auto}.sales-trust-row{justify-content:flex-start}}
+@media(max-width:620px){.book-sales-hero{padding:118px 0 65px}.sales-cover-orbit{height:300px;width:300px}.sales-cover-wrap :deep(.book-cover){max-width:250px}.purchase-entry-card{padding:19px}.checkout-modal-backdrop{align-items:flex-end;padding:0}.checkout-modal{border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;padding:23px 19px}.checkout-modal form{grid-template-columns:1fr}.checkout-modal form>*{grid-column:1}.book-inside-grid{gap:38px}.reader-cards article,.book-learning-list{padding:25px}.purchase-final-card{padding:36px 24px}.purchase-final-card .button{width:100%}.purchase-final-section{padding-bottom:105px}.mobile-buy-bar{align-items:center;background:var(--yellow);border:0;bottom:12px;border-radius:999px;box-shadow:0 12px 35px rgba(0,0,0,.22);color:var(--deep-green);cursor:pointer;display:flex;font-size:.72rem;font-weight:800;gap:8px;justify-content:center;left:16px;min-height:53px;padding:0 18px;position:fixed;right:16px;z-index:45}.mobile-buy-bar strong{margin-left:auto}.sales-trust-row{justify-content:flex-start}}
 @media(max-width:460px){.payment-method{grid-template-columns:auto 1fr}.payment-active{grid-column:2;justify-self:start}.accepted-payments{align-items:flex-start;flex-direction:column}.payment-brand-row{justify-content:flex-start}}
-@media(prefers-reduced-motion:reduce){.reviews-marquee{mask-image:none;overflow-x:auto;padding:0 14px}.reviews-marquee-track{animation:none}.reviews-marquee-group:nth-child(2){display:none}}
+@media(prefers-reduced-motion:reduce){.reviews-marquee{mask-image:none;overflow-x:auto;padding:0 14px}.reviews-marquee-track{animation:none}.reviews-marquee-group:nth-child(2){display:none}.checkout-modal{animation:none}}
 </style>
