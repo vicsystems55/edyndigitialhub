@@ -1,8 +1,7 @@
 <script setup>
-defineProps({ compact: Boolean })
+import coverImage from '../../assets/images/the-healthy-your-cover.png'
 
-const imageModules = import.meta.glob('../../assets/images/*.{png,jpg,jpeg,webp,avif}', { eager: true, import: 'default' })
-const coverImage = imageModules['../../assets/images/the-healthy-your-cover.jpg'] || ''
+defineProps({ compact: Boolean })
 </script>
 
 <template>

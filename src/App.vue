@@ -17,7 +17,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <AppPreloader />
+  <AppPreloader v-if="route.name !== 'the-healthy-you'" />
   <div v-if="ready" :class="isAdminRoute ? 'admin-app-shell' : 'site-shell'">
     <SiteHeader v-if="!isAdminRoute" />
     <main :class="{ 'admin-app-main': isAdminRoute }">
