@@ -18,43 +18,38 @@ const book = ref(null)
 const paymentOption = ref('paystack_ngn')
 const buyer = reactive({ customerName: '', customerEmail: '' })
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const fallbackPrices = Object.freeze({ NGN: 500000, USD: 500 })
 
 usePageAnimations(root)
 
-const formattedPrice = computed(() => {
-  if (!book.value?.priceMinor) return 'Price unavailable'
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: book.value.currency || 'NGN',
-    maximumFractionDigits: 0,
-  }).format(book.value.priceMinor / 100)
-})
 const selectedPayment = computed(() => {
-  if (!book.value) return null
   const currency = paymentOption.value === 'paystack_usd' ? 'USD' : 'NGN'
-  const provider = book.value.paymentProviders?.paystack || {}
+  const provider = book.value?.paymentProviders?.paystack || {}
   const option = provider.options?.[currency] || {}
   const priceMinor = currency === 'USD'
-    ? option.priceMinor ?? book.value.usdPriceMinor
-    : option.priceMinor ?? provider.priceMinor ?? book.value.priceMinor
+    ? option.priceMinor ?? book.value?.usdPriceMinor ?? fallbackPrices.USD
+    : option.priceMinor ?? provider.priceMinor ?? book.value?.priceMinor ?? fallbackPrices.NGN
+  const enabled = book.value
+    ? Boolean(priceMinor && book.value.canPurchase && option.enabled !== false)
+    : true
   return {
     ...option,
-    enabled: Boolean(priceMinor && book.value.canPurchase && option.enabled !== false),
+    enabled,
     priceMinor,
     currency,
   }
 })
 const checkoutPrice = computed(() => {
   const payment = selectedPayment.value
-  if (!payment?.priceMinor) return formattedPrice.value
+  if (!payment?.priceMinor) return paymentOption.value === 'paystack_usd' ? '$5.00' : '₦5,000'
   return new Intl.NumberFormat(payment.currency === 'USD' ? 'en-US' : 'en-NG', { style: 'currency', currency: payment.currency, maximumFractionDigits: payment.currency === 'USD' ? 2 : 0 }).format(payment.priceMinor / 100)
 })
 function providerPrice(currency) {
   const provider = book.value?.paymentProviders?.paystack || {}
   const option = provider.options?.[currency] || {}
   const priceMinor = currency === 'USD'
-    ? option.priceMinor ?? book.value?.usdPriceMinor
-    : option.priceMinor ?? provider.priceMinor ?? book.value?.priceMinor
+    ? option.priceMinor ?? book.value?.usdPriceMinor ?? fallbackPrices.USD
+    : option.priceMinor ?? provider.priceMinor ?? book.value?.priceMinor ?? fallbackPrices.NGN
   if (!priceMinor) return 'Unavailable'
   return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'en-NG', {
     style: 'currency',
@@ -62,12 +57,14 @@ function providerPrice(currency) {
     maximumFractionDigits: currency === 'USD' ? 2 : 0,
   }).format(priceMinor / 100)
 }
-const canPurchase = computed(() => Boolean(book.value?.canPurchase && selectedPayment.value?.enabled))
+const ngnOptionAvailable = computed(() => !book.value || book.value.paymentProviders?.paystack?.options?.NGN?.enabled !== false)
+const usdOptionAvailable = computed(() => !book.value || book.value.paymentProviders?.paystack?.options?.USD?.enabled !== false)
+const canPurchase = computed(() => !book.value || Boolean(book.value.canPurchase && selectedPayment.value?.enabled))
 const checkoutButtonLabel = computed(() => {
   if (checkoutLoading.value) return 'Opening secure checkout…'
   if (!selectedPayment.value?.priceMinor) return 'Set the selected payment price in admin'
-  if (!book.value?.downloadsEnabled) return 'Ebook delivery is not ready'
-  if (!book.value?.purchasesEnabled) return 'Enable purchases in admin'
+  if (book.value && !book.value.downloadsEnabled) return 'Ebook delivery is not ready'
+  if (book.value && !book.value.purchasesEnabled) return 'Enable purchases in admin'
   if (!selectedPayment.value?.enabled) return 'This Paystack payment option is not available'
   return `Buy securely with Paystack — ${checkoutPrice.value}`
 })
@@ -183,9 +180,8 @@ onBeforeUnmount(() => {
           <p class="book-sales-subtitle">Simple, realistic guidance for healthier habits, greater confidence, and lasting progress.</p>
 
           <div id="buy-book" class="purchase-entry-card">
-            <div class="purchase-entry-copy"><span>Instant digital download</span><strong v-if="loadingBook" class="price-loading">Loading price…</strong><strong v-else-if="book?.priceMinor">{{ formattedPrice }} NGN</strong><strong v-else class="price-error">Price unavailable</strong><small v-if="book?.paymentProviders?.paystack?.options?.USD?.enabled">International price: {{ providerPrice('USD') }} USD</small></div>
-            <div v-if="bookLoadError" class="purchase-load-error"><span>{{ bookLoadError }}</span><button type="button" @click="loadBook">Retry</button></div>
-            <button class="purchase-entry-button" type="button" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout"><BookOpen :size="19" /> Buy &amp; Download Now <ArrowRight :size="19" /></button>
+            <div class="purchase-entry-copy"><span>Instant digital download</span><small>Choose Nigerian or international payment at checkout.</small></div>
+            <button class="purchase-entry-button" type="button" @click="openCheckout"><BookOpen :size="19" /> Buy &amp; Download Now <ArrowRight :size="19" /></button>
             <div class="purchase-entry-trust"><ShieldCheck :size="15" /><span>Secure payment · Instant access after confirmation</span></div>
           </div>
           <ul class="hero-book-benefits"><li><CheckCircle2 /> Simple steps you can use every day</li><li><CheckCircle2 /> Sustainable habits—not quick fixes</li><li><CheckCircle2 /> Instant ebook access after payment</li></ul>
@@ -213,8 +209,8 @@ onBeforeUnmount(() => {
 
     <section class="section author-book-section"><div class="container author-book-grid"><div class="author-book-photo" data-reveal><img :src="ceoImage" alt="Princess Oluwatoyin Emmanuel" loading="lazy" /></div><div data-reveal><p class="eyebrow">Meet the author</p><h2>Princess Oluwatoyin Emmanuel</h2><p>Princess is the Founder and Creative Director of Edyn Digital Hub, a multidisciplinary digital professional, educational product developer, and author committed to creating resources that inform, empower, and inspire meaningful growth.</p><blockquote>“The journey to a healthier you begins with understanding, intentional choices, and the courage to keep growing.”</blockquote><RouterLink to="/about" class="text-link">Meet the Founder <ArrowRight :size="17" /></RouterLink></div></div></section>
 
-    <section class="section purchase-final-section"><div class="container purchase-final-card" data-reveal><div><p class="eyebrow light">Begin your journey</p><h2>Your healthier chapter can start today.</h2><p>Get your copy of <em>The Healthy You</em> through our secure checkout.</p></div><button type="button" class="button button-yellow" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout">Buy &amp; Download Now <ArrowRight :size="18" /></button></div></section>
-    <button type="button" class="mobile-buy-bar" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout"><BookOpen :size="17" /><span>Buy &amp; download</span><strong>{{ loadingBook ? 'Loading…' : formattedPrice }}</strong></button>
+    <section class="section purchase-final-section"><div class="container purchase-final-card" data-reveal><div><p class="eyebrow light">Begin your journey</p><h2>Your healthier chapter can start today.</h2><p>Get your copy of <em>The Healthy You</em> through our secure checkout.</p></div><button type="button" class="button button-yellow" @click="openCheckout">Buy &amp; Download Now <ArrowRight :size="18" /></button></div></section>
+    <button type="button" class="mobile-buy-bar" @click="openCheckout"><BookOpen :size="17" /><span>Buy &amp; download now</span></button>
 
     <Teleport to="body">
       <div v-if="checkoutOpen" class="checkout-modal-backdrop" @click.self="closeCheckout">
@@ -222,17 +218,17 @@ onBeforeUnmount(() => {
           <button class="checkout-modal-close" type="button" aria-label="Close checkout" :disabled="checkoutLoading" @click="closeCheckout"><X :size="21" /></button>
           <div class="checkout-heading"><div><span>Complete your order</span><strong id="checkout-modal-title">Buy The Healthy You</strong><small>{{ checkoutPrice }} · Instant ebook access</small></div><CreditCard :size="27" /></div>
           <div class="payment-options" aria-label="Choose a payment method">
-            <button type="button" class="payment-method" :class="{ selected: paymentOption === 'paystack_ngn' }" :disabled="!book?.paymentProviders?.paystack?.options?.NGN?.enabled" @click="paymentOption = 'paystack_ngn'">
+            <button type="button" class="payment-method" :class="{ selected: paymentOption === 'paystack_ngn' }" :disabled="!ngnOptionAvailable" @click="paymentOption = 'paystack_ngn'">
               <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>Pay in Nigeria</strong><small>Paystack · Naira cards, bank transfer and local methods</small></div><span class="payment-active"><i /> {{ providerPrice('NGN') }} NGN</span>
             </button>
-            <button v-if="book?.paymentProviders?.paystack?.options?.USD?.enabled" type="button" class="payment-method" :class="{ selected: paymentOption === 'paystack_usd' }" @click="paymentOption = 'paystack_usd'">
+            <button v-if="usdOptionAvailable" type="button" class="payment-method" :class="{ selected: paymentOption === 'paystack_usd' }" @click="paymentOption = 'paystack_usd'">
               <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>Pay internationally</strong><small>Paystack · International cards charged in US dollars</small></div><span class="payment-active"><i /> {{ providerPrice('USD') }} USD</span>
             </button>
           </div>
           <form @submit.prevent="beginCheckout">
             <label><span>Your name</span><input ref="nameInput" v-model.trim="buyer.customerName" type="text" autocomplete="name" placeholder="Enter your full name" minlength="2" required /></label>
             <label><span>Email for your download</span><input v-model.trim="buyer.customerEmail" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
-            <button class="checkout-button" type="submit" :disabled="loadingBook || checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutButtonLabel }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
+            <button class="checkout-button" type="submit" :disabled="checkoutLoading || !canPurchase"><LoaderCircle v-if="checkoutLoading" class="checkout-spinner" :size="18" /><LockKeyhole v-else :size="17" />{{ checkoutButtonLabel }}<ArrowRight v-if="canPurchase && !checkoutLoading" :size="18" /></button>
           </form>
           <p class="checkout-email-note">Your email is needed only to send your receipt and secure ebook access.</p>
           <div class="accepted-payments" aria-label="Accepted secure payment methods">
