@@ -8,10 +8,8 @@ const books = ref([])
 const selectedSlug = ref('')
 const price = ref('')
 const currency = ref('NGN')
-const paypalPrice = ref('')
+const usdPrice = ref('')
 const internationalPaymentsEnabled = ref(false)
-const paypalConfigured = ref(false)
-const paypalEnvironment = ref('sandbox')
 const purchasesEnabled = ref(false)
 const downloadsEnabled = ref(false)
 const ebook = ref(null)
@@ -27,7 +25,7 @@ function selectBook(book) {
   selectedSlug.value = book.slug
   price.value = book.priceMinor == null ? '' : (book.priceMinor / 100).toFixed(2)
   currency.value = book.currency || 'NGN'
-  paypalPrice.value = book.paypalPriceMinor == null ? '' : (book.paypalPriceMinor / 100).toFixed(2)
+  usdPrice.value = book.usdPriceMinor == null ? '' : (book.usdPriceMinor / 100).toFixed(2)
   purchasesEnabled.value = Boolean(book.purchasesEnabled)
   downloadsEnabled.value = Boolean(book.downloadsEnabled)
   ebook.value = null
@@ -51,8 +49,6 @@ async function loadBooks(preferredSlug = selectedSlug.value) {
     const data = await request('/admin/publications')
     books.value = data.books
     internationalPaymentsEnabled.value = Boolean(data.settings?.internationalPaymentsEnabled)
-    paypalConfigured.value = Boolean(data.settings?.paypalConfigured)
-    paypalEnvironment.value = data.settings?.paypalEnvironment || 'sandbox'
     const book = books.value.find((item) => item.slug === preferredSlug) || books.value[0]
     if (book) selectBook(book)
   } catch (requestError) {
@@ -69,13 +65,13 @@ async function saveSettings() {
   error.value = ''
   try {
     const amount = price.value === '' ? null : Math.round(Number(price.value) * 100)
-    const paypalAmount = paypalPrice.value === '' ? null : Math.round(Number(paypalPrice.value) * 100)
+    const usdAmount = usdPrice.value === '' ? null : Math.round(Number(usdPrice.value) * 100)
     if (amount !== null && (!Number.isFinite(amount) || amount <= 0)) throw new Error('Enter a valid price greater than zero.')
-    if (paypalAmount !== null && (!Number.isFinite(paypalAmount) || paypalAmount <= 0)) throw new Error('Enter a valid PayPal USD price greater than zero.')
+    if (usdAmount !== null && (!Number.isFinite(usdAmount) || usdAmount < 200)) throw new Error('Enter an international USD price of at least $2.00.')
     await request(`/admin/publications/${encodeURIComponent(selectedSlug.value)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ priceMinor: amount, currency: currency.value, paypalPriceMinor: paypalAmount, internationalPaymentsEnabled: internationalPaymentsEnabled.value, purchasesEnabled: purchasesEnabled.value, downloadsEnabled: downloadsEnabled.value }),
+      body: JSON.stringify({ priceMinor: amount, currency: currency.value, usdPriceMinor: usdAmount, internationalPaymentsEnabled: internationalPaymentsEnabled.value, purchasesEnabled: purchasesEnabled.value, downloadsEnabled: downloadsEnabled.value }),
     })
     await loadBooks(selectedSlug.value)
     notice.value = 'Publication settings saved.'
@@ -148,12 +144,12 @@ onMounted(loadBooks)
           <label>Price
             <div class="price-input"><span>₦</span><input v-model="price" inputmode="decimal" placeholder="0.00" /></div>
           </label>
-          <label>Currency<select v-model="currency"><option value="NGN">NGN — Nigerian Naira</option><option value="USD">USD — US Dollar</option></select></label>
-          <label>PayPal price (USD)
-            <div class="price-input"><span>$</span><input v-model="paypalPrice" inputmode="decimal" placeholder="0.00" /></div>
-            <small class="field-help">Set separately because PayPal branded checkout does not process NGN.</small>
+          <label>Local currency<select v-model="currency"><option value="NGN">NGN — Nigerian Naira</option></select></label>
+          <label>International Paystack price (USD)
+            <div class="price-input"><span>$</span><input v-model="usdPrice" inputmode="decimal" placeholder="0.00" /></div>
+            <small class="field-help">Charged through Paystack in USD for international customers.</small>
           </label>
-          <label class="toggle-row international-toggle"><span><strong>Enable international payments</strong><small>Show PayPal checkout to international customers. Paystack remains available.</small><em :class="{ ready: paypalConfigured }">PayPal {{ paypalConfigured ? 'configured' : 'not configured' }} · {{ paypalEnvironment }}</em></span><input v-model="internationalPaymentsEnabled" type="checkbox" /></label>
+          <label class="toggle-row international-toggle"><span><strong>Enable USD checkout</strong><small>Offer international customers the USD Paystack option. NGN checkout remains available.</small><em :class="{ ready: internationalPaymentsEnabled && Number(usdPrice) > 0 }">Paystack USD · {{ internationalPaymentsEnabled ? 'enabled' : 'disabled' }}</em></span><input v-model="internationalPaymentsEnabled" type="checkbox" /></label>
           <label class="toggle-row"><span><strong>Enable purchases</strong><small>Allow customers to pay for this publication.</small></span><input v-model="purchasesEnabled" type="checkbox" /></label>
           <label class="toggle-row"><span><strong>Enable downloads</strong><small>Issue protected links after verified payment.</small></span><input v-model="downloadsEnabled" type="checkbox" /></label>
           <button class="admin-action" type="button" :disabled="saving" @click="saveSettings"><LoaderCircle v-if="saving" class="spin" :size="17" /><Save v-else :size="17" />{{ saving ? 'Saving…' : 'Save settings' }}</button>

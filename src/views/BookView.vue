@@ -15,7 +15,7 @@ const checkoutError = ref('')
 const checkoutOpen = ref(false)
 const nameInput = ref(null)
 const book = ref(null)
-const paymentProvider = ref('paystack')
+const paymentOption = ref('paystack_ngn')
 const buyer = reactive({ customerName: '', customerEmail: '' })
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
@@ -31,15 +31,17 @@ const formattedPrice = computed(() => {
 })
 const selectedPayment = computed(() => {
   if (!book.value) return null
-  const provider = book.value.paymentProviders?.[paymentProvider.value] || {}
-  const priceMinor = paymentProvider.value === 'paystack'
-    ? provider.priceMinor ?? book.value.priceMinor
-    : provider.priceMinor ?? book.value.paypalPriceMinor
+  const currency = paymentOption.value === 'paystack_usd' ? 'USD' : 'NGN'
+  const provider = book.value.paymentProviders?.paystack || {}
+  const option = provider.options?.[currency] || {}
+  const priceMinor = currency === 'USD'
+    ? option.priceMinor ?? book.value.usdPriceMinor
+    : option.priceMinor ?? provider.priceMinor ?? book.value.priceMinor
   return {
-    ...provider,
-    enabled: Boolean(priceMinor && book.value.canPurchase && provider.enabled !== false),
+    ...option,
+    enabled: Boolean(priceMinor && book.value.canPurchase && option.enabled !== false),
     priceMinor,
-    currency: provider.currency || (paymentProvider.value === 'paypal' ? 'USD' : book.value.currency || 'NGN'),
+    currency,
   }
 })
 const checkoutPrice = computed(() => {
@@ -47,13 +49,13 @@ const checkoutPrice = computed(() => {
   if (!payment?.priceMinor) return formattedPrice.value
   return new Intl.NumberFormat(payment.currency === 'USD' ? 'en-US' : 'en-NG', { style: 'currency', currency: payment.currency, maximumFractionDigits: payment.currency === 'USD' ? 2 : 0 }).format(payment.priceMinor / 100)
 })
-function providerPrice(providerName) {
-  const provider = book.value?.paymentProviders?.[providerName] || {}
-  const priceMinor = providerName === 'paystack'
-    ? provider.priceMinor ?? book.value?.priceMinor
-    : provider.priceMinor ?? book.value?.paypalPriceMinor
+function providerPrice(currency) {
+  const provider = book.value?.paymentProviders?.paystack || {}
+  const option = provider.options?.[currency] || {}
+  const priceMinor = currency === 'USD'
+    ? option.priceMinor ?? book.value?.usdPriceMinor
+    : option.priceMinor ?? provider.priceMinor ?? book.value?.priceMinor
   if (!priceMinor) return 'Unavailable'
-  const currency = provider.currency || (providerName === 'paypal' ? 'USD' : book.value?.currency || 'NGN')
   return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'en-NG', {
     style: 'currency',
     currency,
@@ -66,8 +68,8 @@ const checkoutButtonLabel = computed(() => {
   if (!selectedPayment.value?.priceMinor) return 'Set the selected payment price in admin'
   if (!book.value?.downloadsEnabled) return 'Ebook delivery is not ready'
   if (!book.value?.purchasesEnabled) return 'Enable purchases in admin'
-  if (!selectedPayment.value?.enabled) return `${paymentProvider.value === 'paypal' ? 'PayPal' : 'Paystack'} is not available`
-  return `Buy securely with ${paymentProvider.value === 'paypal' ? 'PayPal' : 'Paystack'} — ${checkoutPrice.value}`
+  if (!selectedPayment.value?.enabled) return 'This Paystack payment option is not available'
+  return `Buy securely with Paystack — ${checkoutPrice.value}`
 })
 
 function openCheckout() {
@@ -132,7 +134,7 @@ async function beginCheckout() {
     const response = await fetch(`${apiUrl}/api/v1/payments/initialize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookSlug: 'the-healthy-you', paymentProvider: paymentProvider.value, ...buyer }),
+      body: JSON.stringify({ bookSlug: 'the-healthy-you', paymentProvider: 'paystack', paymentOption: paymentOption.value, ...buyer }),
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.error?.message || 'Checkout could not be started.')
@@ -181,7 +183,7 @@ onBeforeUnmount(() => {
           <p class="book-sales-subtitle">Simple, realistic guidance for healthier habits, greater confidence, and lasting progress.</p>
 
           <div id="buy-book" class="purchase-entry-card">
-            <div class="purchase-entry-copy"><span>Instant digital download</span><strong v-if="loadingBook" class="price-loading">Loading price…</strong><strong v-else-if="book?.priceMinor">{{ formattedPrice }}</strong><strong v-else class="price-error">Price unavailable</strong><small v-if="book?.paymentProviders?.paypal?.enabled">International option: {{ providerPrice('paypal') }} USD</small></div>
+            <div class="purchase-entry-copy"><span>Instant digital download</span><strong v-if="loadingBook" class="price-loading">Loading price…</strong><strong v-else-if="book?.priceMinor">{{ formattedPrice }} NGN</strong><strong v-else class="price-error">Price unavailable</strong><small v-if="book?.paymentProviders?.paystack?.options?.USD?.enabled">International price: {{ providerPrice('USD') }} USD</small></div>
             <div v-if="bookLoadError" class="purchase-load-error"><span>{{ bookLoadError }}</span><button type="button" @click="loadBook">Retry</button></div>
             <button class="purchase-entry-button" type="button" :disabled="loadingBook || !book?.canPurchase" @click="openCheckout"><BookOpen :size="19" /> Buy &amp; Download Now <ArrowRight :size="19" /></button>
             <div class="purchase-entry-trust"><ShieldCheck :size="15" /><span>Secure payment · Instant access after confirmation</span></div>
@@ -220,11 +222,11 @@ onBeforeUnmount(() => {
           <button class="checkout-modal-close" type="button" aria-label="Close checkout" :disabled="checkoutLoading" @click="closeCheckout"><X :size="21" /></button>
           <div class="checkout-heading"><div><span>Complete your order</span><strong id="checkout-modal-title">Buy The Healthy You</strong><small>{{ checkoutPrice }} · Instant ebook access</small></div><CreditCard :size="27" /></div>
           <div class="payment-options" aria-label="Choose a payment method">
-            <button type="button" class="payment-method" :class="{ selected: paymentProvider === 'paystack' }" :disabled="!book?.priceMinor" @click="paymentProvider = 'paystack'">
-              <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>For Nigerian payments</strong><small>Paystack · Card, bank transfer and supported local methods</small></div><span class="payment-active"><i /> {{ providerPrice('paystack') }} NGN</span>
+            <button type="button" class="payment-method" :class="{ selected: paymentOption === 'paystack_ngn' }" :disabled="!book?.paymentProviders?.paystack?.options?.NGN?.enabled" @click="paymentOption = 'paystack_ngn'">
+              <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>Pay in Nigeria</strong><small>Paystack · Naira cards, bank transfer and local methods</small></div><span class="payment-active"><i /> {{ providerPrice('NGN') }} NGN</span>
             </button>
-            <button v-if="book?.paymentProviders?.paypal?.enabled" type="button" class="payment-method paypal" :class="{ selected: paymentProvider === 'paypal' }" @click="paymentProvider = 'paypal'">
-              <span class="payment-method-mark paypal-mark" aria-hidden="true"><span>Pay</span><b>Pal</b></span><div><strong>For international payments</strong><small>PayPal · Pay securely in US dollars</small></div><span class="payment-active"><i /> {{ providerPrice('paypal') }} USD</span>
+            <button v-if="book?.paymentProviders?.paystack?.options?.USD?.enabled" type="button" class="payment-method" :class="{ selected: paymentOption === 'paystack_usd' }" @click="paymentOption = 'paystack_usd'">
+              <span class="payment-method-mark paystack-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="5" rx="2"/><rect x="5" y="13" width="26" height="5" rx="2"/><rect x="5" y="20" width="19" height="5" rx="2"/><rect x="5" y="27" width="11" height="4" rx="2"/></svg></span><div><strong>Pay internationally</strong><small>Paystack · International cards charged in US dollars</small></div><span class="payment-active"><i /> {{ providerPrice('USD') }} USD</span>
             </button>
           </div>
           <form @submit.prevent="beginCheckout">
@@ -240,11 +242,10 @@ onBeforeUnmount(() => {
               <span class="card-brand mastercard" aria-label="Mastercard"><i /><b /></span>
               <span class="card-brand verve" aria-label="Verve">Verve</span>
               <span class="card-brand transfer" aria-label="Bank transfer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18L12 3 3 9Zm2 2v7m4-7v7m6-7v7m4-7v7M3 21h18"/></svg><small>Transfer</small></span>
-              <span v-if="book?.paymentProviders?.paypal?.enabled" class="card-brand paypal-wordmark" aria-label="PayPal"><i>Pay</i><b>Pal</b></span>
             </div>
           </div>
           <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
-          <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by {{ paymentProvider === 'paypal' ? 'PayPal' : 'Paystack' }}. Your payment details never pass through our website.</span></div>
+          <div class="checkout-assurance"><ShieldCheck :size="15" /><span>Payment is securely processed by Paystack. Your payment details never pass through our website.</span></div>
         </section>
       </div>
     </Teleport>
