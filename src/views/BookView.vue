@@ -18,7 +18,7 @@ const book = ref(null)
 const paymentOption = ref('paystack_ngn')
 const buyer = reactive({ customerName: '', customerEmail: '' })
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-const fallbackPrices = Object.freeze({ NGN: 500000, USD: 500 })
+const fallbackPrices = Object.freeze({ NGN: 250000, USD: 300 })
 
 usePageAnimations(root)
 
@@ -41,7 +41,7 @@ const selectedPayment = computed(() => {
 })
 const checkoutPrice = computed(() => {
   const payment = selectedPayment.value
-  if (!payment?.priceMinor) return paymentOption.value === 'paystack_usd' ? '$5.00' : '₦5,000'
+  if (!payment?.priceMinor) return paymentOption.value === 'paystack_usd' ? '$3.00' : '₦2,500'
   return new Intl.NumberFormat(payment.currency === 'USD' ? 'en-US' : 'en-NG', { style: 'currency', currency: payment.currency, maximumFractionDigits: payment.currency === 'USD' ? 2 : 0 }).format(payment.priceMinor / 100)
 })
 function providerPrice(currency) {
