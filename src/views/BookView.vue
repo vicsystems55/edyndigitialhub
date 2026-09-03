@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, BadgeCheck, BookOpen, CheckCircle2, CreditCard, 
 import BookCover from '../components/common/BookCover.vue'
 import { usePageAnimations } from '../composables/usePageAnimations'
 import ceoImage from '../assets/images/ceo.png'
-import reviews from '../data/bookReviews.json'
+import seededReviews from '../data/bookReviews.json'
 import { trackMetaEvent } from '../services/metaPixel'
 
 const root = ref(null)
@@ -19,8 +19,15 @@ const paymentOption = ref('paystack_ngn')
 const buyer = reactive({ customerName: '', customerEmail: '' })
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const fallbackPrices = Object.freeze({ NGN: 250000, USD: 300 })
+const approvedReviews = ref([])
+const reviewSubmitting = ref(false)
+const reviewSuccess = ref('')
+const reviewError = ref('')
+const reviewForm = reactive({ fullName: '', rating: 5, title: '', review: '', anonymous: false, website: '' })
 
 usePageAnimations(root)
+
+const displayReviews = computed(() => [...approvedReviews.value, ...seededReviews])
 
 const selectedPayment = computed(() => {
   const currency = paymentOption.value === 'paystack_usd' ? 'USD' : 'NGN'
@@ -152,9 +159,39 @@ async function beginCheckout() {
   }
 }
 
+async function loadApprovedReviews() {
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/reviews/the-healthy-you`, { cache: 'no-store' })
+    const payload = await response.json().catch(() => ({}))
+    if (response.ok) approvedReviews.value = payload.data?.reviews || []
+  } catch { /* Seeded reviews remain visible when the API is unavailable. */ }
+}
+
+async function submitReview() {
+  reviewSubmitting.value = true
+  reviewError.value = ''
+  reviewSuccess.value = ''
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookSlug: 'the-healthy-you', ...reviewForm }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error?.message || 'Your review could not be submitted.')
+    reviewSuccess.value = 'Thank you! Your review has been received and will appear after approval.'
+    Object.assign(reviewForm, { fullName: '', rating: 5, title: '', review: '', anonymous: false, website: '' })
+  } catch (error) {
+    reviewError.value = error.message || 'Your review could not be submitted. Please try again.'
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
+
 watch(checkoutOpen, (open) => document.body.classList.toggle('checkout-modal-open', open))
 onMounted(() => {
   loadBook()
+  loadApprovedReviews()
   window.addEventListener('keydown', handleCheckoutKeydown)
 })
 onBeforeUnmount(() => {
@@ -196,12 +233,25 @@ onBeforeUnmount(() => {
       <div class="reviews-marquee" aria-label="Reader reviews">
         <div class="reviews-marquee-track">
           <div v-for="group in 2" :key="group" class="reviews-marquee-group" :aria-hidden="group === 2">
-            <article v-for="review in reviews" :key="`${group}-${review.title}`" class="review-card">
-              <div class="review-card-top"><Quote :size="26" /><div v-if="review.rating" class="review-stars" :aria-label="`${review.rating} out of 5 stars`"><Star v-for="star in review.rating" :key="star" :size="14" fill="currentColor" /></div><span v-else><BadgeCheck :size="14" /> Verified reader</span></div>
+            <article v-for="review in displayReviews" :key="`${group}-${review.id || review.title}`" class="review-card">
+              <div class="review-card-top"><Quote :size="26" /><div class="review-card-meta"><span v-if="review.isNew" class="new-review-badge"><Sparkles :size="12" /> New</span><div v-if="review.rating" class="review-stars" :aria-label="`${review.rating} out of 5 stars`"><Star v-for="star in review.rating" :key="star" :size="14" fill="currentColor" /></div><span v-else class="verified-review-badge"><BadgeCheck :size="14" /> Verified reader</span></div></div>
               <h3>“{{ review.title }}”</h3><blockquote>“{{ review.quote }}”</blockquote><footer>— {{ review.author }}</footer>
             </article>
           </div>
         </div>
+      </div>
+      <div class="container review-submission-wrap" data-reveal>
+        <div class="review-submission-copy"><p class="eyebrow">Share your experience</p><h2>Help another reader take the first step.</h2><p>Read <em>The Healthy You</em>? Leave an honest rating and review. Every submission is checked before it appears publicly.</p><div class="review-privacy-note"><ShieldCheck :size="18" /><span>Your full name is visible only to our moderation team when you choose to post anonymously.</span></div></div>
+        <form class="review-form" @submit.prevent="submitReview">
+          <div class="review-rating-field"><span>Your rating</span><div class="review-rating-buttons" role="radiogroup" aria-label="Your rating"><button v-for="star in 5" :key="star" type="button" role="radio" :aria-checked="reviewForm.rating === star" :aria-label="`${star} star${star === 1 ? '' : 's'}`" @click="reviewForm.rating = star"><Star :size="24" :fill="star <= reviewForm.rating ? 'currentColor' : 'none'" /></button></div></div>
+          <label><span>Full name</span><input v-model.trim="reviewForm.fullName" type="text" autocomplete="name" minlength="2" maxlength="100" placeholder="Your full name" required /></label>
+          <label><span>Review title</span><input v-model.trim="reviewForm.title" type="text" minlength="3" maxlength="120" placeholder="Summarize your experience" required /></label>
+          <label class="review-message"><span>Your review</span><textarea v-model.trim="reviewForm.review" minlength="10" maxlength="1500" rows="5" placeholder="What did you find useful or encouraging?" required /></label>
+          <label class="anonymous-option"><input v-model="reviewForm.anonymous" type="checkbox" /><span><strong>Post anonymously</strong><small>Your name will be stored privately for moderation and displayed as “Anonymous Reader”.</small></span></label>
+          <input v-model="reviewForm.website" class="review-honeypot" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <button class="review-submit-button" type="submit" :disabled="reviewSubmitting"><LoaderCircle v-if="reviewSubmitting" class="checkout-spinner" :size="18" /><Star v-else :size="18" />{{ reviewSubmitting ? 'Sending review…' : 'Submit review' }}</button>
+          <p v-if="reviewSuccess" class="review-feedback success">{{ reviewSuccess }}</p><p v-if="reviewError" class="review-feedback error">{{ reviewError }}</p>
+        </form>
       </div>
     </section>
 
@@ -272,6 +322,8 @@ onBeforeUnmount(() => {
 .checkout-error { background:#fff0f0; border-radius:8px; color:#b42318; font-size:.7rem; margin:12px 0 0; padding:9px 11px; }.checkout-assurance { align-items:flex-start; color:var(--muted); display:flex; font-size:.62rem; gap:7px; line-height:1.5; margin-top:13px; }.checkout-assurance svg { color:var(--green); flex-shrink:0; }
 .book-reader-section { background:var(--background); }.reader-cards { display:grid; gap:20px; grid-template-columns:repeat(3,1fr); }.reader-cards article { background:var(--card); border:1px solid var(--border); border-radius:19px; padding:32px; }.reader-cards svg { color:var(--green); height:32px; width:32px; }.reader-cards h3 { font:700 1.15rem 'Manrope'; margin:20px 0 9px; }.reader-cards p { color:var(--muted); font-size:.83rem; line-height:1.7; margin:0; }
 .book-reviews-section { background:var(--surface); overflow:hidden; }.book-reviews-section .section-heading { margin-bottom:42px; }.reviews-marquee { display:flex; mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent); overflow:hidden; width:100%; }.reviews-marquee-track { animation:reviews-scroll 52s linear infinite; display:flex; width:max-content; }.reviews-marquee:hover .reviews-marquee-track,.reviews-marquee:focus-within .reviews-marquee-track { animation-play-state:paused; }.reviews-marquee-group { display:flex; gap:18px; padding-right:18px; }.review-card { background:var(--card); border:1px solid var(--border); border-radius:20px; box-shadow:0 15px 40px rgba(15,50,22,.06); display:flex; flex:0 0 clamp(290px,31vw,390px); flex-direction:column; min-height:295px; padding:27px; }.review-card-top { align-items:center; color:var(--green); display:flex; justify-content:space-between; }.review-card-top>span { align-items:center; background:color-mix(in srgb,var(--green) 9%,var(--card)); border-radius:999px; display:flex; font-size:.57rem; font-weight:800; gap:5px; padding:6px 8px; text-transform:uppercase; }.review-stars { color:var(--gold); display:flex; gap:2px; }.review-card h3 { font:700 1.06rem/1.4 'Manrope'; margin:23px 0 10px; }.review-card blockquote { color:var(--muted); font-size:.8rem; line-height:1.75; margin:0; }.review-card footer { color:var(--green); font-size:.7rem; font-weight:800; margin-top:auto; padding-top:20px; }.dark .review-stars { color:var(--yellow); }
+.review-card-meta{align-items:center;display:flex;gap:9px}.new-review-badge,.verified-review-badge{align-items:center;background:var(--yellow);border-radius:999px;color:#263216;display:flex;font-size:.55rem;font-weight:900;gap:4px;padding:5px 8px;text-transform:uppercase}.verified-review-badge{background:color-mix(in srgb,var(--green) 9%,var(--card));color:var(--green)}
+.review-submission-wrap{align-items:start;display:grid;gap:70px;grid-template-columns:.85fr 1.15fr;margin-top:80px}.review-submission-copy{padding-top:24px}.review-submission-copy h2{font:800 clamp(2rem,4vw,3.4rem)/1.08 'Manrope';letter-spacing:-.045em;margin:10px 0 17px}.review-submission-copy>p:last-of-type{color:var(--muted);line-height:1.75}.review-privacy-note{align-items:flex-start;background:var(--surface-soft);border-radius:12px;color:var(--muted);display:flex;font-size:.68rem;gap:9px;line-height:1.55;margin-top:24px;padding:14px}.review-privacy-note svg{color:var(--green);flex-shrink:0}.review-form{background:var(--card);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);display:grid;gap:15px;grid-template-columns:1fr 1fr;padding:28px}.review-form label>span,.review-rating-field>span{display:block;font-size:.66rem;font-weight:800;margin:0 0 7px 2px}.review-form input[type=text],.review-form textarea{background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font:inherit;outline:0;padding:12px;width:100%}.review-form input[type=text]{min-height:47px}.review-form textarea{line-height:1.55;resize:vertical}.review-form input:focus,.review-form textarea:focus{border-color:var(--fresh-green);box-shadow:0 0 0 3px rgba(63,174,42,.1)}.review-rating-field,.review-message,.anonymous-option,.review-submit-button,.review-feedback{grid-column:1/-1}.review-rating-buttons{display:flex;gap:4px}.review-rating-buttons button{background:transparent;border:0;color:var(--gold);cursor:pointer;padding:3px}.anonymous-option{align-items:flex-start;background:var(--surface-soft);border-radius:10px;cursor:pointer;display:flex;gap:10px;padding:13px}.anonymous-option input{accent-color:var(--green);height:17px;margin-top:2px;width:17px}.anonymous-option span{margin:0!important}.anonymous-option strong,.anonymous-option small{display:block}.anonymous-option strong{font-size:.68rem}.anonymous-option small{color:var(--muted);font-size:.58rem;line-height:1.5;margin-top:3px}.review-honeypot{display:none}.review-submit-button{align-items:center;background:var(--green);border:0;border-radius:10px;color:#fff;cursor:pointer;display:flex;font-size:.74rem;font-weight:800;gap:8px;justify-content:center;min-height:50px}.review-submit-button:disabled{cursor:wait;opacity:.6}.review-feedback{border-radius:9px;font-size:.68rem;line-height:1.5;margin:0;padding:10px 12px}.review-feedback.success{background:#e4f4df;color:var(--green)}.review-feedback.error{background:#fff0f0;color:#b42318}
 .book-inside-section { background:var(--surface-soft); }.book-inside-grid { align-items:center; display:grid; gap:95px; grid-template-columns:1fr 1fr; }.book-inside-grid h2 { font:800 clamp(2.2rem,4vw,3.6rem)/1.08 'Manrope'; letter-spacing:-.05em; margin:10px 0 18px; }.book-inside-grid>div:first-child>p:last-of-type { color:var(--muted); line-height:1.8; }.inside-highlight { align-items:center; background:var(--card); border-left:3px solid var(--yellow); border-radius:10px; display:flex; gap:14px; margin-top:25px; padding:17px; }.inside-highlight svg { color:var(--green); flex-shrink:0; }.inside-highlight strong,.inside-highlight span { display:block; }.inside-highlight strong { font-size:.8rem; }.inside-highlight span { color:var(--muted); font-size:.69rem; margin-top:3px; }
 .book-learning-list { background:var(--card); border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow); padding:32px; }.book-learning-list>p { color:var(--green); font-size:.66rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }.book-learning-list ul { list-style:none; margin:20px 0 0; padding:0; }.book-learning-list li { border-top:1px solid var(--border); display:grid; gap:16px; grid-template-columns:auto 1fr; padding:18px 0; }.book-learning-list li>span { color:var(--gold); font:800 1.1rem 'Manrope'; }.book-learning-list strong,.book-learning-list small { display:block; }.book-learning-list strong { font-size:.84rem; }.book-learning-list small { color:var(--muted); line-height:1.55; margin-top:5px; }
 .author-book-section blockquote { border-left:3px solid var(--yellow); color:var(--text-soft); font:600 1rem/1.65 'Manrope'; margin:25px 0; padding:4px 0 4px 18px; }
@@ -280,8 +332,8 @@ onBeforeUnmount(() => {
 @keyframes checkout-spin { to { transform:rotate(360deg); } }
 @keyframes checkout-modal-in{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes reviews-scroll { to { transform:translateX(-50%); } }
-@media(max-width:900px){.book-sales-grid,.book-inside-grid{gap:55px;grid-template-columns:1fr}.book-sales-copy{order:1;text-align:left}.book-sales-visual{margin:auto;max-width:520px;order:2;width:100%}.reader-cards{grid-template-columns:1fr}.purchase-final-card{align-items:flex-start;flex-direction:column;gap:25px;padding:42px 35px}.book-sales-copy h1{font-size:clamp(3rem,11vw,5rem)}}
-@media(max-width:620px){.book-sales-hero{padding:118px 0 65px}.sales-cover-orbit{height:300px;width:300px}.sales-cover-wrap :deep(.book-cover){max-width:250px}.purchase-entry-card{padding:19px}.checkout-modal-backdrop{align-items:flex-end;padding:0}.checkout-modal{border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;padding:23px 19px}.checkout-modal form{grid-template-columns:1fr}.checkout-modal form>*{grid-column:1}.book-inside-grid{gap:38px}.reader-cards article,.book-learning-list{padding:25px}.purchase-final-card{padding:36px 24px}.purchase-final-card .button{width:100%}.purchase-final-section{padding-bottom:105px}.mobile-buy-bar{align-items:center;background:var(--yellow);border:0;bottom:12px;border-radius:999px;box-shadow:0 12px 35px rgba(0,0,0,.22);color:var(--deep-green);cursor:pointer;display:flex;font-size:.72rem;font-weight:800;gap:8px;justify-content:center;left:16px;min-height:53px;padding:0 18px;position:fixed;right:16px;z-index:45}.mobile-buy-bar strong{margin-left:auto}.sales-trust-row{justify-content:flex-start}}
+@media(max-width:900px){.book-sales-grid,.book-inside-grid,.review-submission-wrap{gap:55px;grid-template-columns:1fr}.book-sales-copy{order:1;text-align:left}.book-sales-visual{margin:auto;max-width:520px;order:2;width:100%}.reader-cards{grid-template-columns:1fr}.purchase-final-card{align-items:flex-start;flex-direction:column;gap:25px;padding:42px 35px}.book-sales-copy h1{font-size:clamp(3rem,11vw,5rem)}.review-submission-copy{padding-top:0}}
+@media(max-width:620px){.book-sales-hero{padding:118px 0 65px}.sales-cover-orbit{height:300px;width:300px}.sales-cover-wrap :deep(.book-cover){max-width:250px}.purchase-entry-card{padding:19px}.checkout-modal-backdrop{align-items:flex-end;padding:0}.checkout-modal{border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;padding:23px 19px}.checkout-modal form{grid-template-columns:1fr}.checkout-modal form>*{grid-column:1}.book-inside-grid{gap:38px}.reader-cards article,.book-learning-list,.review-form{padding:22px}.review-form{grid-template-columns:1fr}.review-form>*{grid-column:1}.review-submission-wrap{margin-top:58px}.purchase-final-card{padding:36px 24px}.purchase-final-card .button{width:100%}.purchase-final-section{padding-bottom:105px}.mobile-buy-bar{align-items:center;background:var(--yellow);border:0;bottom:12px;border-radius:999px;box-shadow:0 12px 35px rgba(0,0,0,.22);color:var(--deep-green);cursor:pointer;display:flex;font-size:.72rem;font-weight:800;gap:8px;justify-content:center;left:16px;min-height:53px;padding:0 18px;position:fixed;right:16px;z-index:45}.mobile-buy-bar strong{margin-left:auto}.sales-trust-row{justify-content:flex-start}}
 @media(max-width:460px){.payment-method{grid-template-columns:auto 1fr}.payment-active{grid-column:2;justify-self:start}.accepted-payments{align-items:flex-start;flex-direction:column}.payment-brand-row{justify-content:flex-start}}
 @media(prefers-reduced-motion:reduce){.reviews-marquee{mask-image:none;overflow-x:auto;padding:0 14px}.reviews-marquee-track{animation:none}.reviews-marquee-group:nth-child(2){display:none}.checkout-modal{animation:none}}
 </style>

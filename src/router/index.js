@@ -21,6 +21,7 @@ const AdminPublicationsView = () => import('../views/admin/AdminPublicationsView
 const AdminSalesView = () => import('../views/admin/AdminSalesView.vue')
 const AdminMessagesView = () => import('../views/admin/AdminMessagesView.vue')
 const AdminNewsletterView = () => import('../views/admin/AdminNewsletterView.vue')
+const AdminReviewsView = () => import('../views/admin/AdminReviewsView.vue')
 const AdminSectionView = () => import('../views/admin/AdminSectionView.vue')
 
 const router = createRouter({
@@ -55,6 +56,7 @@ const router = createRouter({
         { path: 'publications', name: 'admin-publications', component: AdminPublicationsView, meta: { title: 'Publications', admin: true, requiresAdminAuth: true } },
         { path: 'messages', name: 'admin-messages', component: AdminMessagesView, meta: { title: 'Contact Messages', admin: true, requiresAdminAuth: true } },
         { path: 'newsletter', name: 'admin-newsletter', component: AdminNewsletterView, meta: { title: 'Newsletter', admin: true, requiresAdminAuth: true } },
+        { path: 'reviews', name: 'admin-reviews', component: AdminReviewsView, meta: { title: 'Reader Reviews', admin: true, requiresAdminAuth: true } },
         { path: 'settings', name: 'admin-settings', component: AdminSectionView, meta: { title: 'Settings', admin: true, requiresAdminAuth: true, section: 'settings', description: 'Control site details, integrations and administrator preferences.' } },
       ],
     },

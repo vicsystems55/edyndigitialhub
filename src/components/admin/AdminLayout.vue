@@ -13,6 +13,7 @@ import {
   MessageSquare,
   ReceiptText,
   Settings,
+  Star,
   X,
 } from '@lucide/vue'
 import BrandLogo from '../common/BrandLogo.vue'
@@ -24,20 +25,21 @@ const router = useRouter()
 const sidebarOpen = ref(false)
 const accountOpen = ref(false)
 const notificationsOpen = ref(false)
-const notifications = ref({ unreadCount: 0, messages: [] })
+const notifications = ref({ unreadCount: 0, pendingReviewCount: 0, messages: [], reviews: [] })
 let notificationTimer
 const { profile, signOut } = useAdminAuth()
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
-const navigation = [
+const navigation = computed(() => [
   { label: 'Overview', to: '/admin', icon: LayoutDashboard },
   { label: 'Analytics & Views', to: '/admin/analytics', icon: BarChart3 },
   { label: 'Sales & Orders', to: '/admin/sales', icon: ReceiptText },
   { label: 'Publications', to: '/admin/publications', icon: BookOpen },
+  { label: 'Reader Reviews', to: '/admin/reviews', icon: Star, badge: notifications.value.pendingReviewCount || null },
   { label: 'Contact Messages', to: '/admin/messages', icon: MessageSquare },
   { label: 'Newsletter', to: '/admin/newsletter', icon: Mail },
   { label: 'Settings', to: '/admin/settings', icon: Settings },
-]
+])
 
 const pageTitle = computed(() => route.meta.title || 'Dashboard')
 const initials = computed(() => (profile.value?.name || 'Edyn Admin').split(' ').map((word) => word[0]).slice(0, 2).join(''))
@@ -134,8 +136,11 @@ onUnmounted(() => {
               <RouterLink v-for="message in notifications.messages" :key="message.id" to="/admin/messages" @click="notificationsOpen = false">
                 <span>{{ message.name.charAt(0).toUpperCase() }}</span><div><strong>New enquiry from {{ message.name }}</strong><small>{{ message.service || message.email }}</small><time>{{ notificationDate(message.createdAt) }}</time></div>
               </RouterLink>
-              <p v-if="!notifications.messages.length">You have no unread enquiries.</p>
-              <RouterLink class="notification-all" to="/admin/messages" @click="notificationsOpen = false">View all messages</RouterLink>
+              <RouterLink v-for="review in notifications.reviews" :key="review.id" to="/admin/reviews" @click="notificationsOpen = false">
+                <span><Star :size="14" /></span><div><strong>Review awaiting approval</strong><small>{{ review.anonymous ? 'Anonymous option' : review.fullName }} · {{ review.rating }}/5 stars</small><time>{{ notificationDate(review.createdAt) }}</time></div>
+              </RouterLink>
+              <p v-if="!notifications.messages.length && !notifications.reviews.length">You have no pending notifications.</p>
+              <RouterLink class="notification-all" to="/admin/reviews" @click="notificationsOpen = false">Moderate reader reviews</RouterLink>
             </div>
           </div>
           <div class="admin-account-wrap">
